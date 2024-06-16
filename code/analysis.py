@@ -47,8 +47,8 @@ class Analyzer:
                 break
             df_pop1 = df_population[df_population.iteration == it]
             df_pop2 = df_population[df_population.iteration == it + 1]
-            pop1_points = df_pop1.iloc[:, :-2].to_numpy()
-            pop2_points = df_pop2.iloc[:, :-2].to_numpy()
+            pop1_points = df_pop1.iloc[:, :6].to_numpy()
+            pop2_points = df_pop2.iloc[:, :6].to_numpy()
             distances = np.linalg.norm(pop1_points[:, np.newaxis] - pop2_points, axis=2)
             mean_distance = np.mean(distances)
             dict_convergence[it] = mean_distance
@@ -178,6 +178,7 @@ class Analyzer:
         plt.title("Convergence")
         plt.xlabel("Iteration")
         plt.ylabel("Convergence")
+        plt.ylim(0, 1)
         path_plot = os.path.join(
             self.output_dir, f"{self.record_timestamp}_convergence.png"
         )

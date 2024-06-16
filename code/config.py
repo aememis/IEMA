@@ -1,22 +1,27 @@
 import math
 
-NUMBER_OF_ITERATIONS = 500
+NUMBER_OF_ITERATIONS = 150  # 500
 NUMBER_OF_PATHS = 1
 PROJECTION_METHOD = "tsne"
 CORPUS_METHOD = "read"  # "gaussian"  # "read"
 SAMPLE_RATE = 22050
 POPULATION_SIZE = 200
 CORPUS_SIZE = 40000
-MUTATION_STRENGTH = 0.05
+MUTATION_STRENGTH = 0.00001
 MUTATION_RATE = 0.05
-ELITIST_SELECTION = True
+CROSSOVER_RATE = 0.5
+ELITIST_SELECTION = False  # True
 K = 5
+K_CLOSEST_IN_CORPUS = 1
+
+NUMBER_OF_CHILDREN = 2
+NUMBER_OF_PARENTS = 2
 
 # percentage = (81.65 * math.sqrt(N + 0.375) + 50) / N
 # SELECTION_THRESHOLD_DIVISOR = (
 #     100 * POPULATION_SIZE / (81.65 * math.sqrt(POPULATION_SIZE + 0.375) + 50)
 # )
-SELECTION_THRESHOLD_DIVISOR = 30  # temp
+SELECTION_THRESHOLD_DIVISOR = 80  # temp
 
 WHITE = (200, 200, 200)
 BLACK = (0, 0, 0)
@@ -55,15 +60,26 @@ NUMBER_OF_IDX_TO_APPLY_SCORE = 1
 N_LARGEST_TO_SELECT = 10
 
 USE_SIMULATION = True
-SAMPLES_THRESHOLD_LOW = 22050 / 4
-SAMPLES_THRESHOLD_HIGH = 22050 * 6
+SAMPLES_THRESHOLD_LOW = 22050 / 2  # 4
+SAMPLES_THRESHOLD_HIGH = 22050 * 20
 
 # additive synth patch
 # DATA_FIELDS = ["carrier", "ratio", "metrodev", "att", "sus", "score", "pop"]
 
 # vocal mocap
 DATA_FIELDS_VOCALS = ["p1", "p2", "p3", "p4", "p5", "p6", "score", "pop"]
-DATA_FIELDS_CORPUS = ["p1", "p2", "p3", "p4", "p5", "p6", "score", "pop"]
+DATA_FIELDS_CORPUS = [
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "score",
+    "pop",
+    "id",
+    # "children",
+]
 DATA_FIELDS_CORPUS_LABEL = [
     "rms",
     "spectral_bandwidth",
@@ -73,6 +89,8 @@ DATA_FIELDS_CORPUS_LABEL = [
     "sf",
     "score",
     "pop",
+    "id",
+    # "children",
 ]
 
 DATASET_PATH_ALLIN = (

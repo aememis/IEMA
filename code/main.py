@@ -27,13 +27,6 @@ def main():
     op.init_from_corpus(df_corpus, df_population, df_samples)
     op.operate()
 
-    # paths = Operator.get_or_create_paths(source="generate")
-    # for path_id, path in enumerate(paths):
-    #     ## need sd per iteration or whatever, there are problems!!!
-    #     op = Operator(sd)
-    #     op.init_from_corpus(df_corpus, df_population, df_samples)
-    #     op.operate(path_id, path)
-
 
 if __name__ == "__main__":
     main()

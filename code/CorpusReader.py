@@ -1,14 +1,12 @@
-import random
-import pandas as pd
-import numpy as np
-import os
 import glob
-import librosa
 import pickle
+import random
+from typing import Literal
 
 import config as cfg
-from typing import Literal
-from pydub import AudioSegment
+import librosa
+import numpy as np
+import pandas as pd
 
 
 class CorpusReader:
@@ -27,59 +25,68 @@ class CorpusReader:
         len_paths = len(list_paths)
         list_audio = []
         list_notes = []
+        skipped_count = 0
         for i, file in enumerate(list_paths[:-1]):
-            print(f"Loading {str(i).zfill(5)}/{len_paths}", end="\r")
+            try:
+                print(f"Loading {str(i).zfill(5)}/{len_paths}", end="\r")
 
-            y, sr = librosa.load(file)
-            len_y = len(y)
-            if len_y < cfg.SAMPLES_THRESHOLD_LOW or len_y > cfg.SAMPLES_THRESHOLD_HIGH:
+                y, sr = librosa.load(file)
+                len_y = len(y)
+                if (
+                    len_y < cfg.SAMPLES_THRESHOLD_LOW
+                    or len_y > cfg.SAMPLES_THRESHOLD_HIGH
+                ):
+                    continue
+                y /= np.max(np.abs(y))
+
+                rms = librosa.feature.rms(y=y, frame_length=1024, hop_length=512)[0]
+                spectral_bandwidth = librosa.feature.spectral_bandwidth(
+                    y=y, sr=sr, win_length=1024, hop_length=512
+                )[0]
+                flux = librosa.onset.onset_strength(y=y, sr=sr)
+                mfcc = librosa.feature.mfcc(
+                    y=y, n_mfcc=1, win_length=1024, hop_length=512
+                )[0]
+                sc = librosa.feature.spectral_centroid(
+                    y=y, win_length=1024, hop_length=512
+                )[0]
+                sf = librosa.feature.spectral_flatness(
+                    y=y, win_length=1024, hop_length=512
+                )[0]
+
+                # notes_ = [
+                #     os.path.basename(file),
+                #     sr,
+                #     len_y,
+                #     rms,
+                #     spectral_bandwidth,
+                #     flux,
+                #     mfcc,
+                #     sc,
+                #     sf,
+                # ]
+                notes = [
+                    # os.path.basename(file),
+                    # sr,
+                    # len_y,
+                    np.mean(rms),
+                    np.mean(spectral_bandwidth),
+                    np.mean(flux),
+                    np.mean(mfcc),
+                    np.mean(sc),
+                    np.mean(sf),
+                ]
+                audio = [
+                    y,
+                ]
+
+                list_notes.append(notes)
+                list_audio.append(audio)
+            except Exception as e:
+                self.sd.logger.warning(f"\nSkipping {file}, error loading: {e}")
+                skipped_count += 1
                 continue
-            y /= np.max(np.abs(y))
-
-            rms = librosa.feature.rms(y=y, frame_length=1024, hop_length=512)[0]
-            spectral_bandwidth = librosa.feature.spectral_bandwidth(
-                y=y, sr=sr, win_length=1024, hop_length=512
-            )[0]
-            flux = librosa.onset.onset_strength(y=y, sr=sr)
-            mfcc = librosa.feature.mfcc(y=y, n_mfcc=1, win_length=1024, hop_length=512)[
-                0
-            ]
-            sc = librosa.feature.spectral_centroid(
-                y=y, win_length=1024, hop_length=512
-            )[0]
-            sf = librosa.feature.spectral_flatness(
-                y=y, win_length=1024, hop_length=512
-            )[0]
-
-            # notes_ = [
-            #     os.path.basename(file),
-            #     sr,
-            #     len_y,
-            #     rms,
-            #     spectral_bandwidth,
-            #     flux,
-            #     mfcc,
-            #     sc,
-            #     sf,
-            # ]
-            notes = [
-                # os.path.basename(file),
-                # sr,
-                # len_y,
-                np.mean(rms),
-                np.mean(spectral_bandwidth),
-                np.mean(flux),
-                np.mean(mfcc),
-                np.mean(sc),
-                np.mean(sf),
-            ]
-            audio = [
-                y,
-            ]
-
-            list_notes.append(notes)
-            list_audio.append(audio)
-        self.sd.logger.info(f"Loaded {len(list_audio)} files.")
+        self.sd.logger.info(f"Loaded {len(list_audio)} files, skipped {skipped_count}.")
 
         self.df_features = pd.DataFrame(
             list_notes,
@@ -124,7 +131,7 @@ class CorpusReader:
         with open("features.pkl", "rb") as f:
             self.df_features_norm = pickle.load(f)
         with open("samples.pkl", "rb") as f:
-            self.df_samples = pickle.load(f)
+            self.df_samples = None  # pickle.load(f) # temp, samples file is corrupted
 
     def save_corpus(self):
         self.sd.logger.info("Saving corpus...")
@@ -163,6 +170,9 @@ class CorpusReader:
         if save:
             self.save_corpus()
 
+        # temp
+        print(self.df_features_norm.describe())
+
     def get_samples(self):
         return self.df_samples
 
@@ -181,11 +191,11 @@ class CorpusReader:
             ]
             .assign(score=-1)
             .assign(pop=None)
+            .assign(id=None)
+            # .assign(children=None)
             .loc[:, cfg.DATA_FIELDS_CORPUS_LABEL]
             .set_axis(cfg.DATA_FIELDS_CORPUS, axis=1)
         )
-        print(df_corpus)
-        print(cfg.DATA_FIELDS_CORPUS)
         df_population = df_corpus.sample(
             population_size,
             # random_state=42,
