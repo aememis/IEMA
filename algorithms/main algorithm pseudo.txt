@@ -1,0 +1,48 @@
+Initialize:
+    corpus ← extractAudioFeatures(dataset)
+    populationSize ← 200
+    numberOfIterations ← 150
+    newGeneration ← selectRandomPopulation(corpus, populationSize: 200)
+    // shape(newGeneration): (200, 6)
+    generations ← []
+    append generations newGeneration
+    ...
+
+
+For each path in path_bank do:
+
+    For iter ← 1 to numberOfIterations do:
+
+        projection3D ← projectAndNormalize(newGeneration)
+        // shape(projection3D): (200, 3)
+
+        selectedIndividuals ← applySelection(newGeneration, projection3D, path)
+        // shape(selectedIndividuals): (50, 6)
+
+        recombined ← applyCrossover(selectedIndividuals)
+        // shape(recombined): (100, 6)
+
+        mutated ← applyMutation(recombined)
+        // shape(mutated): (100, 6)
+
+        closestFromCorpus ← getClosestSamples(mutated, corpus)
+        // shape(closestFromCorpus): (100, 6)
+
+        previousGeneration ← newGeneration
+        newGeneration ← closestFromCorpus
+
+        If elitistSelection is true then:
+            selectedElites ← bringElites(selectedIndividuals, numberOfElites)
+            newGeneration = newGeneration + selectedElites
+            // shape(newGeneration): (100 + numberOfElites, 6)
+
+        randomFromCorpus ← getFromCorpus(corpus)
+        newGeneration = newGeneration + randomFromCorpus
+        // shape(newGeneration): (200, 6)
+
+        evolutionaryTree ← updateTree(newGeneration, previousGeneration)
+        append generations newGeneration
+
+    End For
+
+End For

@@ -5,7 +5,8 @@ import pandas as pd
 import pickle
 import config as cfg
 import librosa
-import sounddevice
+
+# import sounddevice
 
 
 class CorpusGauss:

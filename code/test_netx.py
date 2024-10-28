@@ -18,13 +18,13 @@ G.add_node(par1.id, data=par1.data)
 G.add_node(par2.id, data=par2.data)
 G.add_node(par3.id, data=par3.data)
 G.add_node(par4.id, data=par4.data)
-# G.add_node(par5.id, data=par5.data)
-# G.add_node(par6.id, data=par6.data)
+G.add_node(par5.id, data=par5.data)
+G.add_node(par6.id, data=par6.data)
 
-parents = [par1, par2, par3, par4]  # , par5, par6]
+parents = [par1, par2, par3, par4 , par5, par6]
 counter = 0
 
-layers = {0: [par1.id, par2.id, par3.id, par4.id]}  # , par5.id, par6.id]}
+layers = {0: [par1.id, par2.id, par3.id, par4.id , par5.id, par6.id]}
 
 
 def add_children(parents):
@@ -33,9 +33,9 @@ def add_children(parents):
     random.shuffle(parents)
     children = []
     for i in range(0, len(parents), 2):
-        new_child1 = Individual(random.randint(0, 10**3))
+        new_child1 = Individual(random.randint(0, 10**6))
         G.add_node(new_child1.id, data=new_child1.data)
-        new_child2 = Individual(random.randint(0, 10**3))
+        new_child2 = Individual(random.randint(0, 10**6))
         G.add_node(new_child2.id, data=new_child2.data)
         children.append(new_child1)
         children.append(new_child2)
@@ -50,7 +50,10 @@ def add_children(parents):
         else:
             layers[counter] = [new_child1.id, new_child2.id]
 
-    if counter < 10:
+        print(layers)
+        input()
+
+    if counter < 5:
         add_children(children)
 
 
