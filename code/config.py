@@ -7,7 +7,7 @@ CORPUS_METHOD = "read"  # "gaussian"  # "read"
 SAMPLE_RATE = 22050
 POPULATION_SIZE = 200
 CORPUS_SIZE = 40000
-MUTATION_STRENGTH = 0.00001
+MUTATION_STRENGTH = 0.001
 MUTATION_RATE = 0.05
 CROSSOVER_RATE = 0.5
 ELITIST_SELECTION = False  # True
@@ -21,7 +21,7 @@ NUMBER_OF_PARENTS = 2
 # SELECTION_THRESHOLD_DIVISOR = (
 #     100 * POPULATION_SIZE / (81.65 * math.sqrt(POPULATION_SIZE + 0.375) + 50)
 # )
-SELECTION_THRESHOLD_DIVISOR = 80  # temp
+SELECTION_THRESHOLD_DIVISOR = 160  # 80  # temp
 
 WHITE = (200, 200, 200)
 BLACK = (0, 0, 0)
@@ -77,8 +77,8 @@ DATA_FIELDS_CORPUS = [
     "p6",
     "score",
     "pop",
+    "sample_id",
     "id",
-    # "children",
 ]
 DATA_FIELDS_CORPUS_LABEL = [
     "rms",
@@ -89,8 +89,8 @@ DATA_FIELDS_CORPUS_LABEL = [
     "sf",
     "score",
     "pop",
+    "sample_id",
     "id",
-    # "children",
 ]
 
 DATASET_PATH_ALLIN = (
@@ -99,5 +99,9 @@ DATASET_PATH_ALLIN = (
 DATASET_PATH_ALLIN2 = (
     "C:\\Users\\emin\\Documents\\mct\\smc24\\data\\allin2\\samples\\*.wav"
 )
-DATASET_PATH_ALLIN3 = "C:\\Users\\emin\\Documents\\mct\\smc24\\data\\allin3\\mp3\\*.mp3"
-DATASET_PATH_FSD50K = "D:\\uio\\mct\\smc24\\dataset\\FSD50K.dev_audio\\*.wav"
+DATASET_PATH_ALLIN3 = (
+    "C:\\Users\\emin\\Documents\\mct\\smc24\\data\\allin3\\mp3\\*.mp3"
+)
+DATASET_PATH_FSD50K = (
+    "D:\\datasets\\FSD50K\\FSD50K.dev_audio_comp\\FSD50K.dev_audio\\*.wav"
+)

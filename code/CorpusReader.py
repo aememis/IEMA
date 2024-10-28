@@ -1,4 +1,5 @@
 import glob
+import os
 import pickle
 import random
 from typing import Literal
@@ -15,6 +16,7 @@ class CorpusReader:
         self.df_corpus = None
         self.df_features = None
         self.df_features_norm = None
+        self.df_filenames = pd.DataFrame()
         self.window_length = 1024
         self.hop_length = 512
 
@@ -25,8 +27,9 @@ class CorpusReader:
         len_paths = len(list_paths)
         list_audio = []
         list_notes = []
+        list_filenames = []
         skipped_count = 0
-        for i, file in enumerate(list_paths[:-1]):
+        for i, file in enumerate(list_paths):
             try:
                 print(f"Loading {str(i).zfill(5)}/{len_paths}", end="\r")
 
@@ -39,7 +42,9 @@ class CorpusReader:
                     continue
                 y /= np.max(np.abs(y))
 
-                rms = librosa.feature.rms(y=y, frame_length=1024, hop_length=512)[0]
+                rms = librosa.feature.rms(
+                    y=y, frame_length=1024, hop_length=512
+                )[0]
                 spectral_bandwidth = librosa.feature.spectral_bandwidth(
                     y=y, sr=sr, win_length=1024, hop_length=512
                 )[0]
@@ -79,14 +84,17 @@ class CorpusReader:
                 audio = [
                     y,
                 ]
-
+                filename = os.path.basename(file)
                 list_notes.append(notes)
                 list_audio.append(audio)
+                list_filenames.append(filename)
             except Exception as e:
                 self.sd.logger.warning(f"\nSkipping {file}, error loading: {e}")
                 skipped_count += 1
                 continue
-        self.sd.logger.info(f"Loaded {len(list_audio)} files, skipped {skipped_count}.")
+        self.sd.logger.info(
+            f"Loaded {len(list_audio)} files, skipped {skipped_count}."
+        )
 
         self.df_features = pd.DataFrame(
             list_notes,
@@ -105,7 +113,17 @@ class CorpusReader:
                 "signal",
             ],
         ).reset_index(drop=True)
+        self.df_filenames = pd.DataFrame(
+            list_filenames,
+            columns=[
+                "filename",
+            ],
+        ).reset_index(drop=True)
+        self.df_filenames["sample_id"] = self.df_filenames.index
+
         print(self.df_features.describe())
+        print(self.df_samples.describe())
+        print(self.df_filenames.describe())
 
         """
         # # Separate the harmonic and percussive components of the audio
@@ -130,8 +148,16 @@ class CorpusReader:
     def read_corpus_from_saved(self):
         with open("features.pkl", "rb") as f:
             self.df_features_norm = pickle.load(f)
+        print(self.df_features_norm.describe())
+        input()
         with open("samples.pkl", "rb") as f:
-            self.df_samples = None  # pickle.load(f) # temp, samples file is corrupted
+            self.df_samples = (
+                None  # pickle.load(f)  # temp, samples file is corrupted
+            )
+        with open("filenames.pkl", "rb") as f:
+            self.df_filenames = pickle.load(f)
+            print(self.df_filenames.describe())
+            input()
 
     def save_corpus(self):
         self.sd.logger.info("Saving corpus...")
@@ -141,7 +167,9 @@ class CorpusReader:
             pickle.dump(self.df_features_norm, file)
         with open("samples.pkl", "wb") as file:
             pickle.dump(self.df_samples, file)
-        self.sd.logger.info("Corpus saved.")
+        with open("filenames.pkl", "wb") as file:
+            pickle.dump(self.df_filenames, file)
+        self.sd.logger.info(f"Corpus saved with size: {len(self.df_features)}")
 
     def normalize_corpus(self):
         self.df_features_norm = self.df_features.copy(deep=True)
@@ -170,9 +198,6 @@ class CorpusReader:
         if save:
             self.save_corpus()
 
-        # temp
-        print(self.df_features_norm.describe())
-
     def get_samples(self):
         return self.df_samples
 
@@ -191,14 +216,15 @@ class CorpusReader:
             ]
             .assign(score=-1)
             .assign(pop=None)
+            .assign(sample_id=None)
             .assign(id=None)
             # .assign(children=None)
             .loc[:, cfg.DATA_FIELDS_CORPUS_LABEL]
             .set_axis(cfg.DATA_FIELDS_CORPUS, axis=1)
         )
-        df_population = df_corpus.sample(
-            population_size,
-            # random_state=42,
-        ).reset_index(drop=True)
-        print(df_population)
+        # df_corpus.sample_id = np.arange(len(df_corpus.index))
+        df_corpus.sample_id = self.df_filenames.sample_id
+        # self.df_filenames["sample_id"] = df_corpus.sample_id
+
+        df_population = df_corpus.sample(population_size).reset_index(drop=True)
         return df_corpus, df_population
