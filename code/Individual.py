@@ -2,6 +2,8 @@ import config as cfg
 
 
 class Individual:
+    """Currently not used."""
+
     def __init__(self, id, data=None, generation=None):  ## temp fix data=1
         self.id = id
         self.data = data

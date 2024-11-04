@@ -54,13 +54,14 @@ class SharedData:
                 cfg.SAMPLES_THRESHOLD_HIGH,
             ),
             "k_closest_in_corpus": cfg.K_CLOSEST_IN_CORPUS,
+            "augment_ratio_crossover": cfg.AUGMENT_RATIO_CROSSOVER,
             "note": note,
         }
         path_metadata_output = os.path.join(
             self.output_dir, f"{self.timestamp}_metadata.json"
         )
         with open(path_metadata_output, "w") as file:
-            json.dump(self.metadata, file)
+            json.dump(self.metadata, file, indent=4)
         self.logger.info(self.metadata)
 
         # data
@@ -102,7 +103,7 @@ class SharedData:
 
     def _create_logger(self, timestamp):
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO)  # Set the logging level
+        logger.setLevel(logging.INFO)
         formatter = logging.Formatter(
             "%(asctime)s %(name)s %(levelname)s  %(message)s"
         )
@@ -136,7 +137,6 @@ class Operator:
         df_population["pop"] = self.sd.current_population
         ids = np.arange(len(df_population))
         df_population["id"] = ids
-        # self.sd.id_counter = len(df_corpus)
         self.sd.id_counter = df_population.id.max() + 1
         self.sd.df_population = df_population.copy(deep=True)
         self.sd.df_corpus = df_corpus.copy(deep=True)
@@ -148,20 +148,14 @@ class Operator:
                 sample_id=self.sd.df_population.iloc[pop_i, -2],
             )
 
-        # nodes_container = [
-        #     (i, {"pop": self.sd.current_population}) for i in df_population.id
-        # ]
-        # self.sd.G.add_nodes_from(nodes_container)
-        # for node in reversed(list(self.sd.G.nodes(data=True))):
-        #     # input(node)
-        #     print(node[1]["pop"])
-
-        # self.sd.df_samples = df_samples.copy(deep=True) # temp, samples corrupted
+        # temp commented out, bc df_samples is corrupted
+        # self.sd.df_samples = df_samples.copy(deep=True)
         self.sd.logger.info(
             f"Corpus had {len(self.sd.df_corpus.index)} samples"
         )
         self.sd.logger.info(
-            f"Initiated from corpus with {len(self.sd.df_population.index)} individuals"
+            "Initiated from corpus with "
+            f"{len(self.sd.df_population.index)} individuals"
         )
 
     def get_or_create_paths(self, source: Literal["file", "generate"] = "file"):
@@ -172,10 +166,6 @@ class Operator:
             with open("paths.pkl", "rb") as file:
                 paths = pickle.load(file)
         elif source == "generate":
-            # dimension_x = cfg.MOCAP_WIDTH_PROJECTION
-            # dimension_y = cfg.MOCAP_HEIGHT_PROJECTION
-            # dimension_z = cfg.MOCAP_HEIGHT_Z_PROJECTION
-
             paths = []
             for _ in range(cfg.NUMBER_OF_PATHS):
                 path = []
@@ -190,8 +180,6 @@ class Operator:
                 pickle.dump(paths, file)
         else:
             raise ValueError("Invalid source argument.")
-
-        # self.draw_path(path)
 
         return paths
 
@@ -213,10 +201,6 @@ class Operator:
         df_proj_norm.iloc[:, 1] -= 1
         df_proj_norm.iloc[:, 2] -= 1
 
-        # plt.figure()
-        # plt.scatter(df_proj_norm.iloc[:, 0], df_proj_norm.iloc[:, 1], s=1.5)
-        # plt.savefig("norm_proj.png")
-
         return df_proj_norm
 
     def draw_projection(self, path):
@@ -234,12 +218,7 @@ class Operator:
         self.sd.logger.info("UMAP projecting the population...")
         umap_model = UMAP(
             n_components=3,
-            # random_state=42,  # Optional: for reproducible results
-            # n_neighbors=15,  # Default is 15, controls the balance between local vs global structure
-            # min_dist=0.1,
-            # * 2
-            # * self.sd.current_population,  # Default is 0.1, controls how tightly UMAP is allowed to pack points together
-        )  #### ????
+        )
         umap_data = umap_model.fit_transform(self.sd.df_population.iloc[:, :6])
         self.sd.logger.info("Done UMAP projection.")
         # self.draw_projection(umap_data)
@@ -250,7 +229,7 @@ class Operator:
         tsne = TSNE(
             n_components=3,
             # random_state=42,
-            # perplexity=10,
+            perplexity=10,
             # early_exaggeration=8,
         )
         tsne_data = tsne.fit_transform(self.sd.df_population.iloc[:, :6])
@@ -265,6 +244,8 @@ class Operator:
         """Rate the selected individuals based on the path."""
 
         list_closest_index_proj = []
+
+        # calculate the closest
         for point in path:
             user_point = np.array([point])
             distances, indices = self.sd.knn.kneighbors(user_point)
@@ -276,14 +257,23 @@ class Operator:
         self.sd.df_population.loc[list_closest_index_proj, "score"] = 1
         return list_closest_index_proj
 
+    def get_and_rate_selected_random(self, path):
+        """Rate the selected individuals based on the path."""
+
+        # select random individuals
+        list_closest_index_proj = np.random.choice(
+            np.arange(len(self.sd.df_tsne.index)),
+            len(path),
+            replace=False,
+        )
+
+        # rate the closest individual
+        self.sd.df_population.loc[list_closest_index_proj, "score"] = 1
+        return list_closest_index_proj
+
     def apply_selection(self, threshold):
-        # df_top = self.sd.df_population.nlargest(threshold, "score", keep="first")
         df_top = self.sd.df_population[self.sd.df_population["score"] == 1]
         self.sd.logger.info(f"{len(df_top.index)} rated individual found.")
-        # self.sd.df_dead = pd.concat(
-        #     [self.sd.df_dead, self.sd.df_population], ignore_index=True
-        # ).reset_index(drop=True)
-        # self.sd.df_population.drop(self.sd.df_population.index, inplace=True)
         return df_top.copy(deep=True).reset_index(drop=True)
 
     def _cross_parts(self, arr1, arr2):
@@ -317,56 +307,67 @@ class Operator:
             df_new_values = pd.DataFrame(
                 nd_new_values, columns=cfg.DATA_FIELDS_CORPUS
             )
-            # df = pd.concat([df, df_new_values], ignore_index=True)
             df_new_values["score"] = -1
             return df_new_values
         else:
-            self.sd.logger.warning("No crossover applied, that's so weird!")
+            self.sd.logger.warning("No crossover applied, this is so weird!")
             return df
 
     def apply_crossover_unique_pairs(self, df):
         nd_new_values = []
         indices = df.index.to_numpy()
         np.random.shuffle(indices)
+
         # augment the indices to have more pairs
-        # indices = np.append(indices, np.random.choice(indices, len(indices)))
-        # np.random.shuffle(indices)
+        indices = np.append(
+            indices,
+            np.random.choice(
+                indices, int(len(indices) * cfg.AUGMENT_RATIO_CROSSOVER)
+            ),
+        )
+
         if len(indices) % 2 != 0:
             self.sd.logger.warning(
                 "Odd number of individuals, one will be reused for crossover."
             )
             indices = np.append(indices, np.random.choice(indices, 1))
         ids_relation = []
-        for i in range(0, len(indices), 2):
+        for i in range(0, len(indices), 1):  # 2
             if i + 1 < len(indices):
-                # if np.random.random() < cfg.CROSSOVER_RATE:
-                arr1 = df.iloc[indices[i]].values[:6]
-                arr2 = df.iloc[indices[i + 1]].values[:6]
-                list_new_values = self._cross_parts(arr1, arr2)
-                list_new_values_reshaped = np.append(
-                    list_new_values,
-                    np.array(
-                        [
+                if np.random.random() < cfg.CROSSOVER_RATE:
+                    arr1 = df.iloc[indices[i]].values[:6]
+                    arr2 = df.iloc[indices[i + 1]].values[:6]
+                    list_new_values = self._cross_parts(arr1, arr2)
+                    list_new_values_reshaped = np.append(
+                        list_new_values,
+                        np.array(
                             [
-                                None,  # score
-                                self.sd.current_population,  # pop
-                                None,  # sample_id
-                                None,  # id
+                                [
+                                    None,  # score
+                                    self.sd.current_population,  # pop
+                                    None,  # sample_id
+                                    None,  # id
+                                ]
                             ]
-                        ]
-                        * 2,
-                        dtype=object,
-                    ),
-                    axis=1,
-                )
-                new_ids = np.arange(self.sd.id_counter, self.sd.id_counter + 2)
-                list_new_values_reshaped[:, -1] = new_ids  # assign new ids
-                ids_relation.append((df.loc[indices[i], "id"], new_ids[0]))
-                ids_relation.append((df.loc[indices[i], "id"], new_ids[1]))
-                ids_relation.append((df.loc[indices[i + 1], "id"], new_ids[0]))
-                ids_relation.append((df.loc[indices[i + 1], "id"], new_ids[1]))
-                self.sd.id_counter += 2
-                nd_new_values.extend(list_new_values_reshaped)
+                            * 2,
+                            dtype=object,
+                        ),
+                        axis=1,
+                    )
+                    new_ids = np.arange(
+                        self.sd.id_counter, self.sd.id_counter + 2
+                    )
+                    list_new_values_reshaped[:, -1] = new_ids  # assign new ids
+                    ids_relation.append((df.loc[indices[i], "id"], new_ids[0]))
+                    ids_relation.append((df.loc[indices[i], "id"], new_ids[1]))
+                    ids_relation.append(
+                        (df.loc[indices[i + 1], "id"], new_ids[0])
+                    )
+                    ids_relation.append(
+                        (df.loc[indices[i + 1], "id"], new_ids[1])
+                    )
+                    self.sd.id_counter += 2
+                    nd_new_values.extend(list_new_values_reshaped)
 
         if len(nd_new_values) > 0:
             df_new_values = pd.DataFrame(
@@ -377,8 +378,6 @@ class Operator:
         else:
             self.sd.logger.warning("No crossover applied, this's so weird.")
             raise Exception()
-            # input("!!!")
-            # return df
 
     def apply_mutation(self, df):
         list_new_datapoints = []
@@ -399,8 +398,10 @@ class Operator:
         return df
 
     def apply_gaussian_mutation_OLD(self, df):
-        """Apply Gaussian mutation to the population. This is deprecated, it is appending
-        new individuals to the population instead of mutating the existing ones.
+        """Apply Gaussian mutation to the population.
+
+        This is deprecated, it is appending new individuals to the population
+        instead of mutating the existing ones.
         """
         list_new_datapoints = []
         for i in range(len(df.index)):
@@ -424,14 +425,19 @@ class Operator:
         for i in range(len(df.index)):
             for j in range(len(df.columns) - 3):
                 if np.random.random() < cfg.MUTATION_RATE:
-                    new_value = df.iloc[i, j] + np.random.normal(
-                        0, cfg.MUTATION_STRENGTH
+                    new_value = df.iloc[i, j] + (
+                        cfg.MUTATION_STRENGTH * np.random.choice([-1, 1])
                     )
+
+                    # round new_value to 10 decimal places
+                    new_value = round(new_value, 10)
+
                     df.iloc[i, j] = np.clip(new_value, -1, 1)
         return df
 
     def draw_all(self, path, list_closest_index_proj):
-        # draw projection and the selected individuals along with the path, in different color and 3d
+        # draw projection and the selected individuals along with the path,
+        # in different color and 3D
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
         ax.scatter(
@@ -477,7 +483,10 @@ class Operator:
         ax.text2D(
             0.05,
             0.95,
-            f"Scored unique individuals: {sum(self.sd.df_population['score'] == 1)}",
+            (
+                "Scored unique individuals: "
+                f"{sum(self.sd.df_population['score'] == 1)}"
+            ),
             transform=ax.transAxes,
         )
         ax.text2D(
@@ -511,7 +520,7 @@ class Operator:
             assert not df["id"].max() > self.sd.id_counter, "noliy"
             df_new["id"] = np.arange(len(df_new.index)) + self.sd.id_counter
             self.sd.id_counter = df_new["id"].max() + 1
-            df = pd.concat([df, df_new])  # , ignore_index=True)
+            df = pd.concat([df, df_new])
             df.reset_index(drop=True, inplace=True)
             self.sd.logger.info(
                 f"Population size after reseeding: {len(df.index)}"
@@ -554,72 +563,19 @@ class Operator:
 
                 df_proj_norm = self.normalize_projection_data(df_proj)
 
-                # sd.df_tsne = df_tsne_norm
                 self.sd.df_tsne = (
-                    df_proj_norm  # temp assinging to tsne for convenience
+                    # temp using 'tsne' name for convenience,
+                    # can be any projection
+                    df_proj_norm
                 )
-                # !!!
 
                 self.fit_knn()
 
-                # print("ID COUNTER 0")
-                # input(self.sd.id_counter)
-
-                # ####
-                # self.sd.logger.info("Calculating Euclidian distances with the corpus")
-                # self.sd.index_lookup = {}
-                # for i in self.sd.df_tsne.index:
-                #     """Find the closest point in the corpus for each individual in the
-                #     population.
-                #     """
-                #     distances = np.linalg.norm(
-                #         self.sd.df_corpus.iloc[:, :-2] - self.sd.df_population.iloc[i, :-2],
-                #         axis=1,
-                #     )
-                #     closest_index = np.argmin(distances)
-                #     self.sd.index_lookup[i] = closest_index
-                # self.sd.logger.info(f"Done calculating the distances with the corpus")
-
-                # self.sd.logger.info("Done projecting.")
-                # self.sd.logger.info(
-                #     f"Selection threshold divisor: {cfg.SELECTION_THRESHOLD_DIVISOR}"
-                # )
-                # ####
-
-                list_closest_index_proj = self.get_and_rate_selected(path)
-
-                # if iteration % 10 == 0:
-                #     self.draw_all(path, list_closest_index_proj)
-
-                # time.sleep(2)  ####
-
-                # for pop_i in self.sd.df_population.index:
-                #     self.sd.G.add_node(
-                #         self.sd.df_population.iloc[pop_i, -1],
-                #         pop=self.sd.current_population,
-                #         sample_id=self.sd.df_population.iloc[pop_i, -2],
-                #     )
-
-                # self.sd.current_population += 1
-
-                # print("unique sample_ids in popu")
-                # print(self.sd.df_population.iloc[:, -2].unique())
-                # print(len(self.sd.df_population.iloc[:, -2].unique()))
-                # print(len(self.sd.df_population.iloc[:, -2]))
-                # input()
-                # print("unique ids in popu")
-                # print(self.sd.df_population.iloc[:, -1].unique())
-                # print(len(self.sd.df_population.iloc[:, -1].unique()))
-                # print(len(self.sd.df_population.iloc[:, -1]))
-                # input()
+                list_closest_index_proj = self.get_and_rate_selected_random(
+                    path
+                )
 
                 df_top = self.apply_selection(cfg.SELECTION_THRESHOLD_DIVISOR)
-
-                # print("unique sample_ids in selected")
-                # print(df_top.iloc[:, -2].unique())
-                # print(len(df_top.iloc[:, -2].unique()))
-                # print(len(df_top.iloc[:, -2]))
-                # input()
 
                 self.sd.logger.info(
                     f"Selected, populating from {len(df_top.index)} individuals..."
@@ -632,52 +588,23 @@ class Operator:
                 if show_graph and iteration % 10 == 0:
                     self.visualize_evo_graph()
 
-                # print("size of df_recombined")
-                # print(len(df_recombined.index))
-                # print("ID COUNTER AFTER CROSSOVER")
-                # input(self.sd.id_counter)
-
                 len_top = len(df_top.index)
                 len_recombined = len(df_recombined.index)
-                # assert len_top + len_top % 2 == len_recombined, (
-                #     "Bad population size after unique pairwise crossover: "
-                #     + f"{len_top} vs {len_recombined}"
-                # )
                 self.sd.logger.info(
                     f"Crossover resulted {len_recombined} individuals."
                 )
 
-                # df_mutated = self.apply_mutation(df_recombined)
                 df = self.apply_gaussian_mutation(df_recombined)
-
-                # print("size of df mutation")
-                # print(len(df.index))
-                # print("ID COUNTER AFTER MUTATION")
-                # input(self.sd.id_counter)
 
                 self.sd.logger.info(
                     f"Mutation resulted {len(df.index)} individuals."
                 )
 
-                # sample the population to preserve the population size
-                # if cfg.ELITIST_SELECTION:
-                #     sample_size = min(
-                #         cfg.POPULATION_SIZE - len(df_top.index), len(df.index)
-                #     )
-                # else:
-                #     sample_size = min(cfg.POPULATION_SIZE, len(df.index))
-                # df = df.sample(
-                #     sample_size,
-                #     # random_state=42,
-                # ).reset_index(
-                #     drop=True
-                # )  ####
-
                 # elitist selection, bring the top-scoring individuals to
                 # the next population
-                if (
-                    cfg.ELITIST_SELECTION
-                ):  ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH A CORRECT ID, PROB NOT
+                if cfg.ELITIST_SELECTION:
+                    ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH
+                    ### A CORRECT ID, PROBABLY NOT
                     sample_size = cfg.POPULATION_SIZE - len(df.index)
                     df = df.sample(sample_size).reset_index(drop=True)
                     df = pd.concat([df, df_top], ignore_index=True)
@@ -692,20 +619,11 @@ class Operator:
                     [self.sd.df_analysis_features, df_save_features]
                 ).reset_index(drop=True)
 
-                # for ind in self.sd.df_corpus.index:
-                #     if any(self.sd.df_corpus.iloc[ind, :] == 0):
-                #         audio_signal = self.sd.df_samples.iloc[ind, 0]
-                #         audio_signal = np.array(audio_signal)
-                #         write("audio.wav", 44100, np.int16(audio_signal * 32767))
-                #         print(f"Audio signal saved.")
-                #         input(self.sd.df_corpus.iloc[ind, :])
-
                 # get the closest individuals from the corpus
-                # self.sd.index_lookup = {}
                 list_closest_indices = []
                 for i in df.index:
-                    """Find the closest point in the corpus for each individual in the
-                    population.
+                    """Find the closest point in the corpus for each
+                    individual in the population.
                     """
                     distances = self.sd.df_corpus.iloc[:, :6] - df.iloc[i, :6]
                     distances_norm = np.linalg.norm(
@@ -715,7 +633,6 @@ class Operator:
                     closest_indices = np.argsort(distances_norm)[
                         : cfg.K_CLOSEST_IN_CORPUS
                     ]
-                    # list_closest_indices.append(np.argmin(distances_norm))
                     list_closest_indices.extend(closest_indices)
                 self.sd.logger.info(
                     f"Done calculating the distances with the corpus"
@@ -737,46 +654,28 @@ class Operator:
                     "does not match the number of indices."
                 )
 
-                # print("dupe samples in corpus:")
-                # print(len(df_closest_in_corpus[df_closest_in_corpus.duplicated()]))
-                # print(df_closest_in_corpus[df_closest_in_corpus.duplicated()])
-                # input()
-
-                # print("size of before reseed")
-                # print(len(df_closest_in_corpus.index))
-                # print("ID COUNTER BEFORE RESEED")
-                # input(self.sd.id_counter)
-
                 # reseed the population with samples from the corpus
                 df_reseed = self.reseed_from_corpus(df_closest_in_corpus)
-
-                # print("size of after reseed")
-                # print(len(df_reseed.index))
-                # print("ID COUNTER AFTER RESEED")
-                # input(self.sd.id_counter)
 
                 assert all(
                     i in df_closest_in_corpus["id"].values
                     for i in np.array(ids_relation)[:, 1]
-                ), "!!! Not all ids in the relation are in the closest individuals from the corpus."
+                ), (
+                    "!!! Not all ids in the relation are in the "
+                    "closest individuals from the corpus."
+                )
 
-                # print("size of ids relation")
-                # print(len(ids_relation))
-                # print("size of reseeded individuals")
-                # print(len(df_recombined.index))
-                assert len(ids_relation) / 2 == len(
-                    df_recombined.index
-                ), "!!! The number of ids in the relation does not match the number of reseeded individuals."
+                assert len(ids_relation) / 2 == len(df_recombined.index), (
+                    "!!! The number of ids in the relation does not "
+                    "match the number of reseeded individuals."
+                )
 
                 self.sd.df_population = df_reseed.copy(deep=True).reset_index(
                     drop=True
                 )
                 self.sd.df_population["score"] = -1
+                self.sd.current_population += 1
                 self.sd.df_population["pop"] = self.sd.current_population
-                # self.sd.df_population["id"] = (
-                #     np.arange(len(self.sd.df_population)) + self.sd.id_counter
-                # )
-                # self.sd.id_counter = self.sd.df_population["id"].max()
 
                 self.sd.logger.info(
                     f"New population with {len(self.sd.df_population.index)}"
@@ -788,12 +687,6 @@ class Operator:
                         pop=self.sd.current_population,
                         sample_id=self.sd.df_population.iloc[pop_i, -2],
                     )
-
-                print("current population")
-                print(self.sd.current_population)
-                if self.sd.current_population == 150:
-                    print(len(self.sd.df_population.index))
-                    input(150)
 
                 try:
                     nodes_added = set()
@@ -809,12 +702,8 @@ class Operator:
                         )
                 except Exception as e:
                     print(e)
-                    # print(list_new_values_reshaped)
-                    # print(indices[i], indices[i + 1])
-                    # print(df.iloc[indices[i], :], df.iloc[indices[i + 1], :])
-                    # print(df.iloc[indices[i], -1], df.iloc[indices[i + 1], -1])
                     print(traceback.format_exc())
-                    input()
+                    input("ERROR")
 
                 # save population for analysis
                 df_save_population = self.sd.df_population.copy(deep=True)
@@ -826,20 +715,12 @@ class Operator:
                     [self.sd.df_analysis_population, df_save_population]
                 ).reset_index(drop=True)
 
-                # # save samples for analysis
-                # df_analysis_samples = df_samples_closest_in_corpus.copy(deep=True)
-                # df_analysis_samples["iteration"] = iteration
-                # df_analysis_samples["path_id"] = path_id
-                # df_analysis_samples["projection_method"] = cfg.PROJECTION_METHOD
-                # df_analysis_samples["corpus_method"] = cfg.CORPUS_METHOD
-                # self.sd.df_analysis_samples = pd.concat(
-                #     [self.sd.df_analysis_samples, df_analysis_samples]
-                # ).reset_index(drop=True)pd.DataFrame()
                 self.sd.logger.info(
                     "- - - - - - - - - - - - - - - - - - - - - - -"
                 )
                 self.sd.logger.info(
-                    f"Finished iteration {iteration} for path {path_id}"
+                    f"Finished iteration {iteration} for path: {path_id} "
+                    f"population: {self.sd.current_population-1}"
                 )
                 self.sd.logger.info(
                     "---------------------------------------------"
@@ -864,8 +745,3 @@ class Operator:
         )
         with open(path_population_output, "wb") as file:
             pickle.dump(self.sd.df_analysis_population, file)
-        # path_samples_output = os.path.join(
-        #     self.sd.output_dir, f"{self.sd.timestamp}_analysis_samples.pkl"
-        # )
-        # with open(path_samples_output, "wb") as file:
-        #     pickle.dump(self.sd.df_analysis_samples, file)

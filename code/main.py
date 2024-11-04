@@ -13,7 +13,6 @@ def main():
 
     if cfg.CORPUS_METHOD == "gaussian":
         corpus = CorpusGauss(sd)
-        corpus.prepare(from_saved=False)
         corpus.prepare_gauss_features(from_saved=False)
         df_corpus, df_population = corpus.get_as_population()
         df_samples = corpus.get_samples()

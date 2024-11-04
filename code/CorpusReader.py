@@ -59,17 +59,6 @@ class CorpusReader:
                     y=y, win_length=1024, hop_length=512
                 )[0]
 
-                # notes_ = [
-                #     os.path.basename(file),
-                #     sr,
-                #     len_y,
-                #     rms,
-                #     spectral_bandwidth,
-                #     flux,
-                #     mfcc,
-                #     sc,
-                #     sf,
-                # ]
                 notes = [
                     # os.path.basename(file),
                     # sr,
@@ -124,26 +113,6 @@ class CorpusReader:
         print(self.df_features.describe())
         print(self.df_samples.describe())
         print(self.df_filenames.describe())
-
-        """
-        # # Separate the harmonic and percussive components of the audio
-        # y_harmonic, y_percussive = librosa.effects.hpss(y)
-        # harmonic_energy = librosa.feature.rms(y=y_harmonic)[0]
-        # percussive_energy = librosa.feature.rms(y=y_percussive)[0]
-        # harmonic_percentile_energy = np.percentile(harmonic_energy, 50)
-        # percussive_percentile_energy = np.percentile(percussive_energy, 50)
-        # if percussive_percentile_energy > 0:
-        #     harmonic_perc = harmonic_percentile_energy / percussive_percentile_energy
-        # else:
-        #     harmonic_perc = -1
-        
-        ftr["rms"] = librosa.feature.rms(y=y, frame_length=win_l, hop_length=hop_l)[0]
-        ftr["sc"] = librosa.feature.spectral_centroid(y=y, win_length=512, hop_length=hop_l)[0]
-        ftr["sb"] = librosa.feature.spectral_bandwidth(y=y, win_length=512, hop_length=hop_l)[0]
-        ftr["sr"] = librosa.feature.spectral_flatness(y=y, win_length=512, hop_length=hop_l)[0]
-        ftr["sf"] = librosa.feature.spectral_rolloff(y=y, win_length=512, hop_length=hop_l)[0]
-        ftr["mfcc"] = librosa.feature.mfcc(y=y, n_mfcc=1, win_length=win_l, hop_length=hop_l)[0]
-        """
 
     def read_corpus_from_saved(self):
         with open("features.pkl", "rb") as f:
@@ -218,13 +187,10 @@ class CorpusReader:
             .assign(pop=None)
             .assign(sample_id=None)
             .assign(id=None)
-            # .assign(children=None)
             .loc[:, cfg.DATA_FIELDS_CORPUS_LABEL]
             .set_axis(cfg.DATA_FIELDS_CORPUS, axis=1)
         )
-        # df_corpus.sample_id = np.arange(len(df_corpus.index))
         df_corpus.sample_id = self.df_filenames.sample_id
-        # self.df_filenames["sample_id"] = df_corpus.sample_id
 
         df_population = df_corpus.sample(population_size).reset_index(drop=True)
         return df_corpus, df_population
