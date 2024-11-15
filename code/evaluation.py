@@ -123,14 +123,14 @@ class Evaluation:
         self.final_mpd = all_mpd_pops[-1]
 
         # plot
-        plt.clf()
-        plt.plot(all_mpd_pops)
-        plt.xlabel("Population")
-        plt.ylabel("Mean Pairwise Distance")
-        plt.title("Mean Pairwise Distances for Each Population")
-        plt.savefig(
-            f"output/{self.record_timestamp}/mean_pairwise_distance.png"
-        )
+        # plt.clf()
+        # plt.plot(all_mpd_pops)
+        # plt.xlabel("Population")
+        # plt.ylabel("Mean Pairwise Distance")
+        # plt.title("Mean Pairwise Distances for Each Population")
+        # plt.savefig(
+        #     f"output/{self.record_timestamp}/mean_pairwise_distance.png"
+        # )
         # plt.show()
 
     def calculate_root_contribution_index(self):
@@ -241,6 +241,9 @@ class Evaluation:
         print(f"Phylo diversity novelty index: {self.final_pdni}")
         print(f"Dataset coverage: {self.final_dataset_coverage}")
         print(f"Category coverage: {self.final_category_coverage}")
+
+
+# end of class
 
 
 def main():

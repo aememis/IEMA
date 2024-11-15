@@ -28,7 +28,8 @@ class SharedData:
         self.id_counter = 0
         self.G = nx.DiGraph()
 
-        note = input("Enter a note for this run: ")
+        # note = input("Enter a note for this run: ")
+        note = "N/A"
         self.metadata = {
             "start_timestamp": self.timestamp,
             "sample_rate": cfg.SAMPLE_RATE,
@@ -143,7 +144,7 @@ class Operator:
                 sample_id=self.sd.df_population.iloc[pop_i, -2],
             )
 
-        # temp commented out, bc df_samples is corrupted
+        # temp commented out, bc df_samples is corrupted and not used
         # self.sd.df_samples = df_samples.copy(deep=True)
         self.sd.logger.info(
             f"Corpus had {len(self.sd.df_corpus.index)} samples"
@@ -152,31 +153,6 @@ class Operator:
             "Initiated from corpus with "
             f"{len(self.sd.df_population.index)} individuals"
         )
-
-    def get_or_create_paths(self, source: Literal["file", "generate"] = "file"):
-        """Random path generator. Returns a list of random points within the 3D
-        projection space.
-        """
-        if source == "file":
-            with open("paths.pkl", "rb") as file:
-                paths = pickle.load(file)
-        elif source == "generate":
-            paths = []
-            for _ in range(cfg.NUMBER_OF_PATHS):
-                path = []
-                for j in range(cfg.SELECTION_THRESHOLD_DIVISOR):
-                    x = random.uniform(-1, 1)
-                    y = random.uniform(-1, 1)
-                    z = random.uniform(-1, 1)
-                    path.append([x, y, z])
-                paths.append(path)
-            paths = np.array(paths)
-            with open("paths.pkl", "wb") as file:
-                pickle.dump(paths, file)
-        else:
-            raise ValueError("Invalid source argument.")
-
-        return paths
 
     def normalize_projection_data(self, df_proj):
         proj_min_x, proj_min_y, proj_min_z = df_proj.min(axis=0)
@@ -543,182 +519,175 @@ class Operator:
         plt.title("Graph with Multiple Parents")
         plt.show()
 
-    def operate(self):
-        paths = self.get_or_create_paths(source="generate")
-        for path_id, path in enumerate(paths):
-            for iteration in range(cfg.NUMBER_OF_ITERATIONS):
-                if cfg.PROJECTION_METHOD == "tsne":
-                    df_proj = self.tsne_project()
-                elif cfg.PROJECTION_METHOD == "umap":
-                    df_proj = self.umap_project()
-                elif cfg.PROJECTION_METHOD == "pca":
-                    raise NotImplementedError("PCA projection not implemented.")
-                else:
-                    raise ValueError("Invalid projection method specified.")
+    def operate(self, path_id, path):
+        for iteration in range(cfg.NUMBER_OF_ITERATIONS):
+            if cfg.PROJECTION_METHOD == "tsne":
+                df_proj = self.tsne_project()
+            elif cfg.PROJECTION_METHOD == "umap":
+                df_proj = self.umap_project()
+            elif cfg.PROJECTION_METHOD == "pca":
+                raise NotImplementedError("PCA projection not implemented.")
+            else:
+                raise ValueError("Invalid projection method specified.")
 
-                df_proj_norm = self.normalize_projection_data(df_proj)
+            df_proj_norm = self.normalize_projection_data(df_proj)
 
-                # temp using 'tsne' name for convenience,
-                # can be any projection method
-                self.sd.df_tsne = df_proj_norm
+            # temp using 'tsne' name for convenience,
+            # can be any projection method
+            self.sd.df_tsne = df_proj_norm
 
-                self.fit_knn()
+            self.fit_knn()
 
-                list_closest_index_proj = self.get_and_rate_selected_random(
-                    path
+            # list_closest_index_proj = self.get_and_rate_selected(path)
+            list_closest_index_proj = self.get_and_rate_selected_random(path)
+
+            df_top = self.apply_selection(cfg.SELECTION_THRESHOLD_DIVISOR)
+
+            self.sd.logger.info(
+                f"Selected, populating from {len(df_top.index)} "
+                "individuals..."
+            )
+            df_recombined, ids_relation = self.apply_crossover_unique_pairs(
+                df_top
+            )
+
+            show_graph = False
+            if show_graph and iteration % 10 == 0:
+                self.visualize_evo_graph()
+
+            len_top = len(df_top.index)
+            len_recombined = len(df_recombined.index)
+            self.sd.logger.info(
+                f"Crossover resulted {len_recombined} individuals."
+            )
+
+            df = self.apply_gaussian_mutation(df_recombined)
+
+            self.sd.logger.info(
+                f"Mutation resulted {len(df.index)} individuals."
+            )
+
+            # elitist selection, bring the top-scoring individuals to
+            # the next population
+            if cfg.ELITIST_SELECTION:
+                ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH
+                ### A CORRECT ID, PROBABLY NOT
+                sample_size = cfg.POPULATION_SIZE - len(df.index)
+                df = df.sample(sample_size).reset_index(drop=True)
+                df = pd.concat([df, df_top], ignore_index=True)
+
+            # save df for analysis
+            df_save_features = df.copy(deep=True)
+            df_save_features["iteration"] = iteration
+            df_save_features["path_id"] = path_id
+            df_save_features["projection_method"] = cfg.PROJECTION_METHOD
+            df_save_features["corpus_method"] = cfg.CORPUS_METHOD
+            self.sd.df_analysis_features = pd.concat(
+                [self.sd.df_analysis_features, df_save_features]
+            ).reset_index(drop=True)
+
+            # get the closest individuals from the corpus
+            list_closest_indices = []
+            for i in df.index:
+                """Find the closest point in the corpus for each
+                individual in the population.
+                """
+                distances = self.sd.df_corpus.iloc[:, :6] - df.iloc[i, :6]
+                distances_norm = np.linalg.norm(
+                    distances.astype(float),
+                    axis=1,
+                )
+                closest_indices = np.argsort(distances_norm)[
+                    : cfg.K_CLOSEST_IN_CORPUS
+                ]
+                list_closest_indices.extend(closest_indices)
+            self.sd.logger.info(
+                f"Done calculating the distances with the corpus"
+            )
+            df_closest_in_corpus = self.sd.df_corpus.iloc[
+                list_closest_indices, :
+            ].copy(deep=True)
+            df_closest_in_corpus["id"] = df["id"].values
+            assert len(df_closest_in_corpus["id"].unique()) == len(
+                df_closest_in_corpus["id"]
+            ), AssertionError(
+                "There are duplicate ids in the closest individuals "
+                "from the corpus."
+            )
+            assert len(list_closest_indices) == len(
+                df_closest_in_corpus.index
+            ), AssertionError(
+                "The number of closest individuals from the corpus "
+                "does not match the number of indices."
+            )
+
+            # reseed the population with samples from the corpus
+            df_reseed = self.reseed_from_corpus(df_closest_in_corpus)
+
+            assert all(
+                i in df_closest_in_corpus["id"].values
+                for i in np.array(ids_relation)[:, 1]
+            ), (
+                "!!! Not all ids in the relation are in the "
+                "closest individuals from the corpus."
+            )
+
+            assert len(ids_relation) / 2 == len(df_recombined.index), (
+                "!!! The number of ids in the relation does not "
+                "match the number of reseeded individuals."
+            )
+
+            self.sd.df_population = df_reseed.copy(deep=True).reset_index(
+                drop=True
+            )
+            self.sd.df_population["score"] = -1
+            self.sd.current_population += 1
+            self.sd.df_population["pop"] = self.sd.current_population
+
+            self.sd.logger.info(
+                f"New population with {len(self.sd.df_population.index)}"
+            )
+
+            for pop_i in self.sd.df_population.index:
+                self.sd.G.add_node(
+                    self.sd.df_population.iloc[pop_i, -1],
+                    pop=self.sd.current_population,
+                    sample_id=self.sd.df_population.iloc[pop_i, -2],
                 )
 
-                df_top = self.apply_selection(cfg.SELECTION_THRESHOLD_DIVISOR)
-
-                self.sd.logger.info(
-                    f"Selected, populating from {len(df_top.index)} "
-                    "individuals..."
-                )
-                df_recombined, ids_relation = self.apply_crossover_unique_pairs(
-                    df_top
-                )
-
-                show_graph = False
-                if show_graph and iteration % 10 == 0:
-                    self.visualize_evo_graph()
-
-                len_top = len(df_top.index)
-                len_recombined = len(df_recombined.index)
-                self.sd.logger.info(
-                    f"Crossover resulted {len_recombined} individuals."
-                )
-
-                df = self.apply_gaussian_mutation(df_recombined)
-
-                self.sd.logger.info(
-                    f"Mutation resulted {len(df.index)} individuals."
-                )
-
-                # elitist selection, bring the top-scoring individuals to
-                # the next population
-                if cfg.ELITIST_SELECTION:
-                    ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH
-                    ### A CORRECT ID, PROBABLY NOT
-                    sample_size = cfg.POPULATION_SIZE - len(df.index)
-                    df = df.sample(sample_size).reset_index(drop=True)
-                    df = pd.concat([df, df_top], ignore_index=True)
-
-                # save df for analysis
-                df_save_features = df.copy(deep=True)
-                df_save_features["iteration"] = iteration
-                df_save_features["path_id"] = path_id
-                df_save_features["projection_method"] = cfg.PROJECTION_METHOD
-                df_save_features["corpus_method"] = cfg.CORPUS_METHOD
-                self.sd.df_analysis_features = pd.concat(
-                    [self.sd.df_analysis_features, df_save_features]
-                ).reset_index(drop=True)
-
-                # get the closest individuals from the corpus
-                list_closest_indices = []
-                for i in df.index:
-                    """Find the closest point in the corpus for each
-                    individual in the population.
-                    """
-                    distances = self.sd.df_corpus.iloc[:, :6] - df.iloc[i, :6]
-                    distances_norm = np.linalg.norm(
-                        distances.astype(float),
-                        axis=1,
-                    )
-                    closest_indices = np.argsort(distances_norm)[
-                        : cfg.K_CLOSEST_IN_CORPUS
-                    ]
-                    list_closest_indices.extend(closest_indices)
-                self.sd.logger.info(
-                    f"Done calculating the distances with the corpus"
-                )
-                df_closest_in_corpus = self.sd.df_corpus.iloc[
-                    list_closest_indices, :
-                ].copy(deep=True)
-                df_closest_in_corpus["id"] = df["id"].values
-                assert len(df_closest_in_corpus["id"].unique()) == len(
-                    df_closest_in_corpus["id"]
-                ), AssertionError(
-                    "There are duplicate ids in the closest individuals "
-                    "from the corpus."
-                )
-                assert len(list_closest_indices) == len(
-                    df_closest_in_corpus.index
-                ), AssertionError(
-                    "The number of closest individuals from the corpus "
-                    "does not match the number of indices."
-                )
-
-                # reseed the population with samples from the corpus
-                df_reseed = self.reseed_from_corpus(df_closest_in_corpus)
-
-                assert all(
-                    i in df_closest_in_corpus["id"].values
-                    for i in np.array(ids_relation)[:, 1]
-                ), (
-                    "!!! Not all ids in the relation are in the "
-                    "closest individuals from the corpus."
-                )
-
-                assert len(ids_relation) / 2 == len(df_recombined.index), (
-                    "!!! The number of ids in the relation does not "
-                    "match the number of reseeded individuals."
-                )
-
-                self.sd.df_population = df_reseed.copy(deep=True).reset_index(
-                    drop=True
-                )
-                self.sd.df_population["score"] = -1
-                self.sd.current_population += 1
-                self.sd.df_population["pop"] = self.sd.current_population
-
-                self.sd.logger.info(
-                    f"New population with {len(self.sd.df_population.index)}"
-                )
-
-                for pop_i in self.sd.df_population.index:
-                    self.sd.G.add_node(
-                        self.sd.df_population.iloc[pop_i, -1],
-                        pop=self.sd.current_population,
-                        sample_id=self.sd.df_population.iloc[pop_i, -2],
-                    )
-
-                try:
-                    nodes_added = set()
-                    for new_i in range(len(ids_relation)):
-                        if not ids_relation[new_i][1] in nodes_added:
-                            self.sd.G.add_node(
-                                ids_relation[new_i][1],
-                                pop=self.sd.current_population,
-                            )
-                            nodes_added.add(ids_relation[new_i][1])
-                        self.sd.G.add_edge(
-                            ids_relation[new_i][0], ids_relation[new_i][1]
+            try:
+                nodes_added = set()
+                for new_i in range(len(ids_relation)):
+                    if not ids_relation[new_i][1] in nodes_added:
+                        self.sd.G.add_node(
+                            ids_relation[new_i][1],
+                            pop=self.sd.current_population,
                         )
-                except Exception as e:
-                    print(e)
-                    print(traceback.format_exc())
-                    input("ERROR")
+                        nodes_added.add(ids_relation[new_i][1])
+                    self.sd.G.add_edge(
+                        ids_relation[new_i][0], ids_relation[new_i][1]
+                    )
+            except Exception as e:
+                print(e)
+                print(traceback.format_exc())
+                input("ERROR")
 
-                # save population for analysis
-                df_save_population = self.sd.df_population.copy(deep=True)
-                df_save_population["iteration"] = iteration
-                df_save_population["path_id"] = path_id
-                df_save_population["projection_method"] = cfg.PROJECTION_METHOD
-                df_save_population["corpus_method"] = cfg.CORPUS_METHOD
-                self.sd.df_analysis_population = pd.concat(
-                    [self.sd.df_analysis_population, df_save_population]
-                ).reset_index(drop=True)
+            # save population for analysis
+            df_save_population = self.sd.df_population.copy(deep=True)
+            df_save_population["iteration"] = iteration
+            df_save_population["path_id"] = path_id
+            df_save_population["projection_method"] = cfg.PROJECTION_METHOD
+            df_save_population["corpus_method"] = cfg.CORPUS_METHOD
+            self.sd.df_analysis_population = pd.concat(
+                [self.sd.df_analysis_population, df_save_population]
+            ).reset_index(drop=True)
 
-                self.sd.logger.info(
-                    "- - - - - - - - - - - - - - - - - - - - - - -"
-                )
-                self.sd.logger.info(
-                    f"Finished iteration {iteration} for path: {path_id} "
-                    f"population: {self.sd.current_population-1}"
-                )
-                self.sd.logger.info(
-                    "---------------------------------------------"
-                )
+            self.sd.logger.info("- - - - - - - - - - - - - - - - - - - - - - -")
+            self.sd.logger.info(
+                f"Finished iteration {iteration} for path: {path_id} "
+                f"population: {self.sd.current_population-1}"
+            )
+            self.sd.logger.info("---------------------------------------------")
 
         # save the graph
         path_graph_output = os.path.join(
