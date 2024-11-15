@@ -1,17 +1,19 @@
 import math
 
+NUMBER_OF_RUNS = 1
+
 NUMBER_OF_ITERATIONS = 50  # 150  # 500
 NUMBER_OF_PATHS = 1
 PROJECTION_METHOD = "tsne"  # "umap"
-CORPUS_METHOD = "read"  # "gaussian"  # "read"
+CORPUS_METHOD = "gaussian"  # "gaussian"  # "read"
 SAMPLE_RATE = 22050
 POPULATION_SIZE = 200
-CORPUS_SIZE = 40000  # 40000
-MUTATION_STRENGTH = 0.1
-MUTATION_RATE = 0.33
+CORPUS_SIZE = 40000
+MUTATION_STRENGTH = 0.05
+MUTATION_RATE = 0.05
 CROSSOVER_RATE = 0.8
 ELITIST_SELECTION = False  # True
-AUGMENT_RATIO_CROSSOVER = 0.33
+AUGMENT_RATIO_CROSSOVER = 0.5
 
 K = 5
 K_CLOSEST_IN_CORPUS = 1
@@ -19,7 +21,6 @@ K_CLOSEST_IN_CORPUS = 1
 NUMBER_OF_CHILDREN = 2
 NUMBER_OF_PARENTS = 2
 
-# percentage = (81.65 * math.sqrt(N + 0.375) + 50) / N
 # SELECTION_THRESHOLD_DIVISOR = (
 #     100 * POPULATION_SIZE / (81.65 * math.sqrt(POPULATION_SIZE + 0.375) + 50)
 # )
@@ -69,7 +70,16 @@ SAMPLES_THRESHOLD_HIGH = 22050 * 20
 # DATA_FIELDS = ["carrier", "ratio", "metrodev", "att", "sus", "score", "pop"]
 
 # vocal mocap
-DATA_FIELDS_VOCALS = ["p1", "p2", "p3", "p4", "p5", "p6", "score", "pop"]
+DATA_FIELDS_VOCALS = [
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "score",
+    "pop",
+]
 DATA_FIELDS_CORPUS = [
     "p1",
     "p2",

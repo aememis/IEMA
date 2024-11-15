@@ -1,13 +1,9 @@
 import traceback
-from scipy.io.wavfile import write
 import json
 import os
-import datetime
 import logging
-import math
 import pickle
 import random
-import time
 from typing import Literal
 
 import config as cfg
@@ -19,7 +15,6 @@ from sklearn.neighbors import NearestNeighbors
 from umap import UMAP
 
 import networkx as nx
-from Individual import Individual
 
 
 class SharedData:
@@ -563,11 +558,9 @@ class Operator:
 
                 df_proj_norm = self.normalize_projection_data(df_proj)
 
-                self.sd.df_tsne = (
-                    # temp using 'tsne' name for convenience,
-                    # can be any projection
-                    df_proj_norm
-                )
+                # temp using 'tsne' name for convenience,
+                # can be any projection method
+                self.sd.df_tsne = df_proj_norm
 
                 self.fit_knn()
 
@@ -578,7 +571,8 @@ class Operator:
                 df_top = self.apply_selection(cfg.SELECTION_THRESHOLD_DIVISOR)
 
                 self.sd.logger.info(
-                    f"Selected, populating from {len(df_top.index)} individuals..."
+                    f"Selected, populating from {len(df_top.index)} "
+                    "individuals..."
                 )
                 df_recombined, ids_relation = self.apply_crossover_unique_pairs(
                     df_top
