@@ -10,7 +10,6 @@ import pandas as pd
 class Evaluation:
     def __init__(self, record_timestamp):
         self.record_timestamp = record_timestamp
-        print(f"Running: {self.record_timestamp}")
 
     def load_data(self):
         print("Loading data...")
@@ -231,6 +230,7 @@ class Evaluation:
         )
 
     def run(self):
+        print(f"Running: {self.record_timestamp}")
         self.load_data()
         self.calculate_functional_variance()
         self.calculate_phylo_diversity_novelty_index()

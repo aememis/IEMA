@@ -28,8 +28,6 @@ class SharedData:
         self.id_counter = 0
         self.G = nx.DiGraph()
 
-        # note = input("Enter a note for this run: ")
-        note = "N/A"
         self.metadata = {
             "start_timestamp": self.timestamp,
             "sample_rate": cfg.SAMPLE_RATE,
@@ -51,7 +49,7 @@ class SharedData:
             ),
             "k_closest_in_corpus": cfg.K_CLOSEST_IN_CORPUS,
             "augment_ratio_crossover": cfg.AUGMENT_RATIO_CROSSOVER,
-            "note": note,
+            "note": cfg.NOTE,
         }
         path_metadata_output = os.path.join(
             self.output_dir, f"{self.timestamp}_metadata.json"
@@ -569,7 +567,7 @@ class Operator:
 
             # elitist selection, bring the top-scoring individuals to
             # the next population
-            if cfg.ELITIST_SELECTION:
+            if cfg.ELITIST_SELECTION == "true":
                 ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH
                 ### A CORRECT ID, PROBABLY NOT
                 sample_size = cfg.POPULATION_SIZE - len(df.index)

@@ -117,16 +117,12 @@ class CorpusReader:
     def read_corpus_from_saved(self):
         with open("features.pkl", "rb") as f:
             self.df_features_norm = pickle.load(f)
-        print(self.df_features_norm.describe())
-        input()
         with open("samples.pkl", "rb") as f:
             self.df_samples = (
                 None  # pickle.load(f)  # temp, samples file is corrupted
             )
         with open("filenames.pkl", "rb") as f:
             self.df_filenames = pickle.load(f)
-            print(self.df_filenames.describe())
-            input()
 
     def save_corpus(self):
         self.sd.logger.info("Saving corpus...")
