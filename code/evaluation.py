@@ -1,5 +1,7 @@
+import json
 import os
 import pickle
+import re
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -8,8 +10,9 @@ import pandas as pd
 
 
 class Evaluation:
-    def __init__(self, record_timestamp):
-        self.record_timestamp = record_timestamp
+    def __init__(self, target_dir):
+        self.target_dir = target_dir
+        self.evaluation_results = {}
 
     def load_data(self):
         print("Loading data...")
@@ -21,7 +24,7 @@ class Evaluation:
 
         # load the evolution history
         with open(
-            f"output/{self.record_timestamp}/{self.record_timestamp}_analysis_population.pkl",
+            f"{self.target_dir}/analysis_population.pkl",
             "rb",
         ) as f:
             self.df_iterations = pickle.load(f)
@@ -37,20 +40,22 @@ class Evaluation:
             var = df_gen.var(axis=0)
             self.all_pops_var.append(np.mean(var))
 
+        self.evaluation_results["functional_variance"] = self.all_pops_var
+
         # plot
+        plt.clf()
         plt.plot(self.all_pops_var)
         plt.xlabel("Population")
         plt.ylabel("Variance")
         plt.title("Variance of each population")
         plt.ylim(0, 0.2)
-        plt.savefig(f"output/{self.record_timestamp}/population_diversity.png")
+        plt.savefig(f"{self.target_dir}/population_diversity.png")
         # plt.show()
 
     def load_phylo_data(self):
         # load the graph to nx
-        ts = self.record_timestamp
         with open(
-            f"output/{ts}/{ts}_analysis_evo_graph.gpickle",
+            f"{self.target_dir}/analysis_evo_graph.gpickle",
             "rb",
         ) as f:
             self.G = pickle.load(f)
@@ -156,6 +161,28 @@ class Evaluation:
         self.calculate_root_contribution_index()
         self.final_pdni = self.final_mpd / self.final_rci
 
+        self.evaluation_results["phylo_diversity_novelty_index"] = (
+            self.final_pdni
+        )
+
+        # plot single point
+        plt.clf()
+        plt.scatter(0, self.final_pdni)
+        plt.xlabel("Phylogenetic Diversity Novelty Index")
+        plt.title("Phylogenetic Diversity Novelty Index")
+        plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
+        for i, txt in enumerate([self.final_pdni]):
+            plt.annotate(
+                f"{txt:.2f}",
+                (0, txt),
+                textcoords="offset points",
+                xytext=(20, 0),
+                ha="center",
+                va="center",
+            )
+        plt.savefig(f"{self.target_dir}/phylo_diversity_novelty_index.png")
+        # plt.show()
+
     def calculate_categorical_diversity_novelty_index(self):
         print("Calculating categorical diversity and novelty index...")
         # load the filenames of the audio files
@@ -196,6 +223,10 @@ class Evaluation:
             ]
             all_pops_cat.append(len(set(cats)) / len(cats))
 
+        self.evaluation_results["categorical_diversity_novelty_index"] = (
+            all_pops_cat
+        )
+
         # plot
         plt.clf()
         plt.plot(all_pops_cat)
@@ -203,7 +234,7 @@ class Evaluation:
         plt.ylabel("Mean Category Diversity")
         plt.title("Mean category diversity for each population")
         plt.ylim(0, 1)
-        plt.savefig(f"output/{self.record_timestamp}/category_diversity.png")
+        plt.savefig(f"{self.target_dir}/category_diversity.png")
         # plt.show()
 
     def calculate_coverage_metrics(self):
@@ -213,6 +244,10 @@ class Evaluation:
         n_of_unique_files = self.df_ontology_lookup.fname.unique().shape[0]
         n_of_files = self.df_metacoll.fname.astype(str).unique().shape[0]
         self.final_dataset_coverage = n_of_unique_files / n_of_files * 100
+
+        self.evaluation_results["dataset_coverage"] = (
+            self.final_dataset_coverage
+        )
 
         # Calculate category coverage
         n_of_unique_categories = (
@@ -229,30 +264,74 @@ class Evaluation:
             n_of_unique_categories / n_of_categories * 100
         )
 
-    def run(self):
-        print(f"Running: {self.record_timestamp}")
+        self.evaluation_results["category_coverage"] = (
+            self.final_category_coverage
+        )
+
+        # plot two points with labels
+        plt.clf()
+        plt.scatter(0, self.final_dataset_coverage, label="Dataset Coverage")
+        plt.scatter(0, self.final_category_coverage, label="Category Coverage")
+        plt.legend()
+        plt.xlabel("Coverage")
+        plt.title("Coverage Metrics")
+        plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
+        for i, txt in enumerate(
+            [self.final_dataset_coverage, self.final_category_coverage]
+        ):
+            plt.annotate(
+                f"{txt:.2f}",
+                (0, txt),
+                textcoords="offset points",
+                xytext=(20, 0),
+                ha="center",
+                va="center",
+            )
+        plt.savefig(f"{self.target_dir}/data_and_category_coverage.png")
+        # plt.show()
+
+    def calculate(self):
+        print(f"Running: {self.target_dir}")
         self.load_data()
         self.calculate_functional_variance()
         self.calculate_phylo_diversity_novelty_index()
         self.calculate_categorical_diversity_novelty_index()
         self.calculate_coverage_metrics()
 
-        print(f"Functional variance plotted")
-        print(f"Phylo diversity novelty index: {self.final_pdni}")
-        print(f"Dataset coverage: {self.final_dataset_coverage}")
-        print(f"Category coverage: {self.final_category_coverage}")
+        print(self.evaluation_results)
+
+        # save the results
+        with open(
+            f"{self.target_dir}/evaluation_results.pkl",
+            "wb",
+        ) as f:
+            pickle.dump(self.evaluation_results, f)
+
+        # save as readable json
+        with open(
+            f"{self.target_dir}/evaluation_results.json",
+            "w",
+        ) as f:
+            json.dump(self.evaluation_results, f)
 
 
 # end of class
 
 
 def main():
-    list_record_timestamp = [
-        "20241104_213011",
-    ]
-    for record_timestamp in list_record_timestamp:
-        evaluation = Evaluation(record_timestamp)
-        evaluation.run()
+    eval_timestamp = "20241117_999999"  # test
+    target_dirs = []
+    for root, dirs, files in os.walk(f"output\\{eval_timestamp}"):
+        for target_dir in dirs:
+            if re.match(r"path_[0-9]{3}", target_dir):
+                target_dirs.append(os.path.join(root, target_dir))
+
+    for target_dir in target_dirs:
+        evaluation = Evaluation(target_dir)
+        evaluation.calculate()
+
+    print(eval_timestamp)
+    print("Done evaluation!")
 
 
 if __name__ == "__main__":

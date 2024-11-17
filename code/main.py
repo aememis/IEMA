@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 
 import config as cfg
@@ -7,21 +8,19 @@ from corpus_reader import CorpusReader
 from evaluation import Evaluation
 from operations import Operator, SharedData
 from path import Path
+import re
 
 
-def read_runs_configs():
-    with open("runs_config.json", "r") as file:
+def read_run_configs():
+    with open("run_configs.json", "r") as file:
         data = json.load(file)
     return data
 
 
-def run():
-    timestamps = []
-    paths = Path.get_or_create_paths(source="generate")
-    for path_id, path in enumerate(paths):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        timestamps.append(timestamp)
-        sd = SharedData(timestamp)
+def run(eval_timestamp, run_id):
+    paths = Path.get_or_create_paths(source="file")
+    for path_id, path in enumerate(paths, 1):
+        sd = SharedData(eval_timestamp, run_id, path_id)
         sd.logger.info("Starting...")
 
         if cfg.CORPUS_METHOD == "gaussian":
@@ -40,9 +39,25 @@ def run():
         op.operate(path_id, path)
 
 
-def evaluate(timestamp):
-    evaluation = Evaluation(timestamp)
-    evaluation.run()
+def run_tests(eval_timestamp):
+    os.makedirs(f"output/{eval_timestamp}")
+    run_configs = read_run_configs()
+    for run_id, run_config in run_configs.items():
+        update_config(run_config)
+        run(eval_timestamp, run_id)
+    print(run_configs)
+
+
+def evaluate(eval_timestamp):
+    target_dirs = []
+    for root, dirs, files in os.walk(f"output\\{eval_timestamp}"):
+        for target_dir in dirs:
+            if re.match(r"path_[0-9]{3}", target_dir):
+                target_dirs.append(os.path.join(root, target_dir))
+
+    for target_dir in target_dirs:
+        evaluation = Evaluation(target_dir)
+        evaluation.calculate()
 
 
 def update_config(run_config):
@@ -52,15 +67,9 @@ def update_config(run_config):
 
 def main():
     print("Starting...")
-    run_configs = read_runs_configs()
-    run_timestamps = []
-    for run_id, run_config in run_configs.items():
-        update_config(run_config)
-        run_timestamp = run()
-        run_timestamps.append(run_timestamp)
-    for run_timestamp in run_timestamps:
-        evaluate(run_timestamp)
-    print(run_timestamps)
+    eval_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_tests(eval_timestamp)
+    evaluate(eval_timestamp)
     input("Done!")
 
 

@@ -12,7 +12,7 @@ class Path:
 
     @staticmethod
     def get_or_create_paths(source: Literal["file", "generate"] = "file"):
-        """Random path generator. Returns a list of random points within the 3D
+        """Returns a list of random points within the 3D
         projection space.
         """
         if source == "file":

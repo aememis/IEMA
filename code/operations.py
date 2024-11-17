@@ -3,7 +3,7 @@ import json
 import os
 import logging
 import pickle
-import random
+from datetime import datetime
 from typing import Literal
 
 import config as cfg
@@ -18,18 +18,32 @@ import networkx as nx
 
 
 class SharedData:
-    def __init__(self, timestamp):
-        self.timestamp = timestamp
-        self.output_dir = "output/" + self.timestamp
+    def __init__(self, eval_timestamp, run_id, path_id):
+        self.start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.eval_timestamp = eval_timestamp
+        self.run_id = run_id
+        self.path_id = path_id
+        self.output_dir = (
+            f"output/{eval_timestamp}/"
+            f"run_{str(run_id).zfill(3)}/"
+            f"path_{str(run_id).zfill(3)}"
+        )
+        self.output_prefix = ""
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        self.logger = self._create_logger(self.timestamp)
+        if not logging.getLogger().hasHandlers():
+            self.logger = self._create_logger("main")
+        else:
+            self.logger = logging.getLogger()
 
         self.id_counter = 0
         self.G = nx.DiGraph()
 
         self.metadata = {
-            "start_timestamp": self.timestamp,
+            "start_timestamp": self.start_timestamp,
+            "eval_timestamp": self.eval_timestamp,
+            "run_id": self.run_id,
+            "path_id": self.path_id,
             "sample_rate": cfg.SAMPLE_RATE,
             "number_of_iterations": cfg.NUMBER_OF_ITERATIONS,
             "number_of_paths": cfg.NUMBER_OF_PATHS,
@@ -52,7 +66,8 @@ class SharedData:
             "note": cfg.NOTE,
         }
         path_metadata_output = os.path.join(
-            self.output_dir, f"{self.timestamp}_metadata.json"
+            self.output_dir,
+            f"{self.output_prefix}run_config.json",
         )
         with open(path_metadata_output, "w") as file:
             json.dump(self.metadata, file, indent=4)
@@ -690,19 +705,20 @@ class Operator:
         # save the graph
         path_graph_output = os.path.join(
             self.sd.output_dir,
-            f"{self.sd.timestamp}_analysis_evo_graph.gpickle",
+            f"{self.sd.output_prefix}analysis_evo_graph.gpickle",
         )
         with open(path_graph_output, "wb") as file:
             pickle.dump(self.sd.G, file)
 
         # save analysis dataframes
         path_features_output = os.path.join(
-            self.sd.output_dir, f"{self.sd.timestamp}_analysis_features.pkl"
+            self.sd.output_dir, f"{self.sd.output_prefix}analysis_features.pkl"
         )
         with open(path_features_output, "wb") as file:
             pickle.dump(self.sd.df_analysis_features, file)
         path_population_output = os.path.join(
-            self.sd.output_dir, f"{self.sd.timestamp}_analysis_population.pkl"
+            self.sd.output_dir,
+            f"{self.sd.output_prefix}analysis_population.pkl",
         )
         with open(path_population_output, "wb") as file:
             pickle.dump(self.sd.df_analysis_population, file)
