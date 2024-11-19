@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+from dataset import FSD50K
 
 
 class Evaluation:
@@ -156,9 +157,8 @@ class Evaluation:
 
     def calculate_phylo_diversity_novelty_index(self):
         print("Calculating phylogenetic diversity and novelty index...")
-        self.load_phylo_data()
-        self.calculate_pairwise_distances()
         self.calculate_root_contribution_index()
+        self.calculate_pairwise_distances()
         self.final_pdni = self.final_mpd / self.final_rci
 
         self.evaluation_results["phylo_diversity_novelty_index"] = (
@@ -183,8 +183,93 @@ class Evaluation:
         plt.savefig(f"{self.target_dir}/phylo_diversity_novelty_index.png")
         # plt.show()
 
-    def calculate_categorical_diversity_novelty_index(self):
+    def category_change_rate(self):
+        """The change in categories from the
+        previous generation to the current one. Calculated by summing the dis-
+        tances between the categories of individuals and their parents, and av-
+        eraged across all individuals in the current generation.Indicates
+        whether the algorithm is exploring new categories or sticking to
+        established ones. Calculated for each generation
+        """
+
+        dataset = FSD50K()
+
+        all_pops_ccr = []
+        input(self.df_iterations["pop"].unique())
+        for pop in sorted(self.df_iterations["pop"].unique()):
+            if (
+                pop == 0 or pop == 1 or pop == 2
+            ):  #### FIX THIS, pop should start from 1
+                continue
+            df_gen = self.df_iterations.loc[
+                self.df_iterations["pop"] == pop, ["id", "sample_id"]
+            ]
+            df_prev_gen = self.df_iterations.loc[
+                self.df_iterations["pop"] == pop - 1, ["id", "sample_id"]
+            ]
+            input(("pop", pop))
+            print(df_prev_gen.columns)
+            input(df_prev_gen)
+            for i, row in df_gen.iterrows():
+                node_id = row["id"]
+                node_sample_id = row["sample_id"]
+                node_cats = (
+                    self.df_ontology_lookup.loc[
+                        self.df_ontology_lookup["sample_id"] == node_sample_id,
+                        "mids",
+                    ]
+                    .explode()
+                    .unique()
+                )
+                parents = list(self.G_plot.predecessors(node_id))
+                assert pop == self.G.nodes()[node_id]["pop"]
+                parents = [p for p in parents if p in df_prev_gen["id"].values]
+                parents_sample_ids = df_prev_gen.loc[
+                    df_prev_gen["id"].isin(parents), "sample_id"
+                ].values
+                parent_cats = (
+                    self.df_ontology_lookup.loc[
+                        self.df_ontology_lookup["sample_id"].isin(
+                            parents_sample_ids
+                        ),
+                        "mids",
+                    ]
+                    .explode()
+                    .unique()
+                )
+                print(("parent_cats", parent_cats))
+                input(("node_cats", node_cats))
+
+                dataset.get_distances(node_cats, parent_cats)
+
+    def categorical_diversity(self):
         print("Calculating categorical diversity and novelty index...")
+
+        # Calculate the categorical diversity
+        all_pops_cd = []
+        for pop in self.df_ontology_lookup["pop"].unique():
+            cats = self.df_ontology_lookup.loc[
+                self.df_ontology_lookup["pop"] == pop, "mids_first"
+            ]
+            all_pops_cd.append(len(set(cats)) / len(cats))
+
+        self.evaluation_results["categorical_diversity_novelty_index"] = (
+            all_pops_cd
+        )
+
+        # plot
+        plt.clf()
+        plt.plot(all_pops_cd)
+        plt.xlabel("Population")
+        plt.ylabel("Mean Category Diversity")
+        plt.title("Mean category diversity for each population")
+        plt.ylim(0, 1)
+        plt.savefig(f"{self.target_dir}/category_diversity.png")
+        # plt.show()
+
+        return all_pops_cd
+
+    def calculate_categorical_diversity_novelty_index(self):
         # load the filenames of the audio files
         with open("filenames.pkl", "rb") as f:
             self.df_filenames = pickle.load(f)
@@ -215,27 +300,13 @@ class Evaluation:
             self.df_ontology_lookup.mids.str[0]
         )
 
-        # Calculate
-        all_pops_cat = []
-        for pop in self.df_ontology_lookup["pop"].unique():
-            cats = self.df_ontology_lookup.loc[
-                self.df_ontology_lookup["pop"] == pop, "mids_first"
-            ]
-            all_pops_cat.append(len(set(cats)) / len(cats))
+        # dataset = Dataset()
+        # self.df_ontology_lookup["mids_level2"] = dataset.get_level2_mids(
+        #     self.df_ontology_lookup.mids
+        # )
 
-        self.evaluation_results["categorical_diversity_novelty_index"] = (
-            all_pops_cat
-        )
-
-        # plot
-        plt.clf()
-        plt.plot(all_pops_cat)
-        plt.xlabel("Population")
-        plt.ylabel("Mean Category Diversity")
-        plt.title("Mean category diversity for each population")
-        plt.ylim(0, 1)
-        plt.savefig(f"{self.target_dir}/category_diversity.png")
-        # plt.show()
+        all_pops_cd = self.categorical_diversity()
+        all_pop_ccr = self.category_change_rate()
 
     def calculate_coverage_metrics(self):
         print("Calculating coverage metrics...")
@@ -293,10 +364,11 @@ class Evaluation:
     def calculate(self):
         print(f"Running: {self.target_dir}")
         self.load_data()
-        self.calculate_functional_variance()
-        self.calculate_phylo_diversity_novelty_index()
+        # self.calculate_functional_variance()
+        self.load_phylo_data()
+        # self.calculate_phylo_diversity_novelty_index()
         self.calculate_categorical_diversity_novelty_index()
-        self.calculate_coverage_metrics()
+        # self.calculate_coverage_metrics()
 
         print(self.evaluation_results)
 
@@ -319,18 +391,20 @@ class Evaluation:
 
 
 def main():
-    eval_timestamp = "20241117_999999"  # test
+    print("Starting evaluation...")
+    session_timestamp = "20241117_203229"  # test
     target_dirs = []
-    for root, dirs, files in os.walk(f"output\\{eval_timestamp}"):
+    for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
+    print(target_dirs)
     for target_dir in target_dirs:
         evaluation = Evaluation(target_dir)
         evaluation.calculate()
 
-    print(eval_timestamp)
+    print(session_timestamp)
     print("Done evaluation!")
 
 

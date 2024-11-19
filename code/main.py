@@ -17,10 +17,15 @@ def read_run_configs():
     return data
 
 
-def run(eval_timestamp, run_id):
+def run(session_timestamp, run_id):
     paths = Path.get_or_create_paths(source="file")
+    assert cfg.NUMBER_OF_PATHS == len(paths), (
+        "Number of paths does not match the config. "
+        f"The config has '{cfg.NUMBER_OF_PATHS}' paths but "
+        f"the file has '{len(paths)}' paths."
+    )
     for path_id, path in enumerate(paths, 1):
-        sd = SharedData(eval_timestamp, run_id, path_id)
+        sd = SharedData(session_timestamp, run_id, path_id)
         sd.logger.info("Starting...")
 
         if cfg.CORPUS_METHOD == "gaussian":
@@ -39,18 +44,18 @@ def run(eval_timestamp, run_id):
         op.operate(path_id, path)
 
 
-def run_tests(eval_timestamp):
-    os.makedirs(f"output/{eval_timestamp}")
+def run_tests(session_timestamp):
+    os.makedirs(f"output/{session_timestamp}")
     run_configs = read_run_configs()
     for run_id, run_config in run_configs.items():
         update_config(run_config)
-        run(eval_timestamp, run_id)
+        run(session_timestamp, run_id)
     print(run_configs)
 
 
-def evaluate(eval_timestamp):
+def evaluate(session_timestamp):
     target_dirs = []
-    for root, dirs, files in os.walk(f"output\\{eval_timestamp}"):
+    for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
@@ -67,9 +72,9 @@ def update_config(run_config):
 
 def main():
     print("Starting...")
-    eval_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_tests(eval_timestamp)
-    evaluate(eval_timestamp)
+    session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_tests(session_timestamp)
+    evaluate(session_timestamp)
     input("Done!")
 
 

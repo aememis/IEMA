@@ -18,15 +18,15 @@ import networkx as nx
 
 
 class SharedData:
-    def __init__(self, eval_timestamp, run_id, path_id):
+    def __init__(self, session_timestamp, run_id, path_id):
         self.start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.eval_timestamp = eval_timestamp
+        self.session_timestamp = session_timestamp
         self.run_id = run_id
         self.path_id = path_id
         self.output_dir = (
-            f"output/{eval_timestamp}/"
+            f"output/{session_timestamp}/"
             f"run_{str(run_id).zfill(3)}/"
-            f"path_{str(run_id).zfill(3)}"
+            f"path_{str(path_id).zfill(3)}"
         )
         self.output_prefix = ""
         if not os.path.exists(self.output_dir):
@@ -41,7 +41,7 @@ class SharedData:
 
         self.metadata = {
             "start_timestamp": self.start_timestamp,
-            "eval_timestamp": self.eval_timestamp,
+            "session_timestamp": self.session_timestamp,
             "run_id": self.run_id,
             "path_id": self.path_id,
             "sample_rate": cfg.SAMPLE_RATE,

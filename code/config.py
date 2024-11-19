@@ -118,3 +118,7 @@ DATASET_PATH_ALLIN3 = (
 DATASET_PATH_FSD50K = (
     "D:\\datasets\\FSD50K\\FSD50K.dev_audio_comp\\FSD50K.dev_audio\\*.wav"
 )
+ONTOLOGY_GRAPH_PATH_FSD50K = (
+    "analyze_datasets\\fsd0k\\20241006_154042_dataset_ontology.gpickle"
+)
+ONTOLOGY_LAYERS_PATH_FSD50K = "analyze_datasets\\fsd0k\\layers.json"
