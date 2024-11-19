@@ -3,24 +3,27 @@ Folder PATH listing
 │   config.py
 │       Config file with all the parameters for the system to run
 │
-│   CorpusGauss.py
+│   corpus_gauss.py
 │       Class to generate the Gaussian random corpus for testing
 │
-│   CorpusReader.py
+│   corpus_reader.py
 │       Class to read the dataset and generate the audio features
 │
-│   evaluation.ipynb
+│   evaluation_notebook.ipynb
 │       Notebook to run the evaluation metrics on the records
 │
-│   Individual.py
+│   individual.py
 │       Class to generate the individual for the genetic algorithm
 │       (Currently not used)
 │
 │   main.py
 │       Main file to run the system
 │
-│   Operator.py
+│   operations.py
 │       Class to run the genetic operations
+│
+│   path.py
+│       Class to store the paths for simulating the user interaction
 │
 │   features.pkl
 │   features_raw.pkl
@@ -34,13 +37,15 @@ Folder PATH listing
 │
 │
 ├───analyze_datasets
-│   │   Stores the scripts for preprocessing the datasets
+│   │   Stores the scripts for preprocessing the datasets, and the
+│   │   resultant files
 │   │   
-│   └───fsd0k
+│   └───fsd50k
 │           20241006_153611_dataset_ontology.gpickle
 │           20241006_154042_dataset_ontology.gpickle
 │           fsd50k.ipynb
 │           ontology.json
+│           layers.json
 │
 └───output
         Stores the records for each run
