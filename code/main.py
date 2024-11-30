@@ -45,15 +45,17 @@ def run(session_timestamp, run_id):
 
 
 def run_tests(session_timestamp):
+    print("Running tests...")
     os.makedirs(f"output/{session_timestamp}")
     run_configs = read_run_configs()
     for run_id, run_config in run_configs.items():
         update_config(run_config)
         run(session_timestamp, run_id)
-    print(run_configs)
 
 
 def evaluate(session_timestamp):
+    print("Evaluating results...")
+
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
@@ -73,8 +75,12 @@ def update_config(run_config):
 def main():
     print("Starting...")
     session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    Path.get_or_create_paths(source="generate")
+
     run_tests(session_timestamp)
     evaluate(session_timestamp)
+
     input("Done!")
 
 

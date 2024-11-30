@@ -4,7 +4,6 @@ import os
 import pickle
 import traceback
 from datetime import datetime
-from typing import Literal
 
 import config as cfg
 import networkx as nx
@@ -30,10 +29,11 @@ class SharedData:
         self.output_prefix = ""
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        if not logging.getLogger().hasHandlers():
-            self.logger = self._create_logger("main")
+        logger_name = "runs"
+        if not logging.getLogger(logger_name).hasHandlers():
+            self.logger = self._create_logger(logger_name)
         else:
-            self.logger = logging.getLogger()
+            self.logger = logging.getLogger(logger_name)
 
         self.id_counter = 0
         self.G = nx.DiGraph()
@@ -70,7 +70,8 @@ class SharedData:
         )
         with open(path_metadata_output, "w") as file:
             json.dump(self.metadata, file, indent=4)
-        self.logger.info(self.metadata)
+
+        self.logger.info(f"Metadata: {self.metadata}")
 
         # data
         self.x = None
@@ -109,15 +110,15 @@ class SharedData:
         self.df_analysis_features = pd.DataFrame()
         self.df_analysis_samples = pd.DataFrame()
 
-    def _create_logger(self, timestamp):
-        logger = logging.getLogger()
+    def _create_logger(self, name):
+        logger = logging.getLogger(name)
         logger.setLevel(logging.INFO)
         formatter = logging.Formatter(
             "%(asctime)s %(name)s %(levelname)s  %(message)s"
         )
 
         # Create a file handler
-        log_filename = f"log_{timestamp}.log"
+        log_filename = "application.log"
         log_filepath = os.path.join(self.output_dir, log_filename)
         if not os.path.exists(log_filepath):
             open(log_filepath, "w").close()
@@ -411,11 +412,9 @@ class Operator:
                     new_value = df.iloc[i, j] + (
                         cfg.MUTATION_STRENGTH * np.random.choice([-1, 1])
                     )
-
-                    # round new_value to 10 decimal places
-                    new_value = round(new_value, 10)
-
-                    df.iloc[i, j] = np.clip(new_value, -1, 1)
+                    df.iloc[i, j] = np.clip(
+                        np.int64(new_value), -1, 1
+                    )  #### added it64 not tested
         return df
 
     def draw_all(self, path, list_closest_index_proj):

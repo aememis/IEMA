@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pickle
 import re
@@ -15,9 +16,39 @@ class Evaluation:
         self.target_dir = target_dir
         self.evaluation_results = {}
         self.dataset = FSD50K()
+        logger_name = "evaluation"
+        if not logging.getLogger(logger_name).hasHandlers():
+            self.logger = self._create_logger(logger_name)
+        else:
+            self.logger = logging.getLogger(logger_name)
+
+    def _create_logger(self, name):
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            "%(asctime)s %(name)s %(levelname)s  %(message)s"
+        )
+
+        # Create a file handler
+        log_filename = "application.log"
+        log_filepath = os.path.join(self.target_dir, log_filename)
+        if not os.path.exists(log_filepath):
+            open(log_filepath, "w").close()
+        file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        # Create a console (stream) handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+        return logger
 
     def load_data(self):
-        print("Loading data...")
+        self.logger.info("Loading data...")
 
         # load the audio features
         with open("features.pkl", "rb") as f:  # gaussian_features_norm.pkl
@@ -32,7 +63,7 @@ class Evaluation:
             self.df_iterations = pickle.load(f)
 
     def calculate_functional_variance(self):
-        print("Calculating functional variance...")
+        self.logger.info("Calculating functional variance...")
         self.all_pops_var = []
         for pop in self.df_iterations["pop"].unique():
             df_gen = self.df_iterations.loc[
@@ -72,7 +103,7 @@ class Evaluation:
             self.G_plot.add_edge(v, u)
 
     def calculate_pairwise_distances(self):
-        print("\tCalculating pairwise distances...")
+        self.logger.info("\tCalculating pairwise distances...")
         all_mpd_pops = []
         all_pops_unique = (
             pd.Series([node[1]["pop"] for node in self.G_plot.nodes(data=True)])
@@ -122,7 +153,7 @@ class Evaluation:
         return all_mpd_pops[-1]  # for the final version of the tree
 
     def calculate_root_contribution_index(self):
-        print("\tCalculating root contribution index...")
+        self.logger.info("\tCalculating root contribution index...")
         # get the roots based on the condition that they have no incoming edges
         roots = [n for n in self.G.nodes() if self.G.in_degree(n) == 0]
 
@@ -143,7 +174,9 @@ class Evaluation:
         return root_contributions.sum() / self.G.number_of_nodes()
 
     def calculate_phylo_diversity_novelty_index(self):
-        print("Calculating phylogenetic diversity and novelty index...")
+        self.logger.info(
+            "Calculating phylogenetic diversity and novelty index..."
+        )
 
         # get max population
         self.max_pop = self.df_iterations["pop"].max()
@@ -197,7 +230,7 @@ class Evaluation:
         whether the algorithm is exploring new categories or sticking to
         established ones. Calculated for each generation
         """
-        print("\tCalculating category change rate...")
+        self.logger.info("\tCalculating category change rate...")
         all_pops_ccr = [None]
         for pop in sorted(self.df_iterations["pop"].unique()):
             if pop == 0 or pop == 1 or pop == 2:
@@ -262,7 +295,7 @@ class Evaluation:
         return all_pops_ccr
 
     def categorical_diversity(self):
-        print("\tCalculating categorical diversity...")
+        self.logger.info("\tCalculating categorical diversity...")
 
         # Calculate the categorical diversity
         all_pops_cd = []
@@ -319,7 +352,7 @@ class Evaluation:
         )
 
     def calculate_categorical_diversity_novelty_index(self):
-        print("Calculating categorical diversity novelty index...")
+        self.logger.info("Calculating categorical diversity novelty index...")
 
         self.all_pops_cd = self.categorical_diversity()
         self.all_pops_ccr = self.category_change_rate()
@@ -331,7 +364,7 @@ class Evaluation:
         }
 
     def calculate_coverage_metrics(self):
-        print("Calculating coverage metrics...")
+        self.logger.info("Calculating coverage metrics...")
 
         # Calculate dataset coverage
         n_of_unique_files = self.df_ontology_lookup.fname.unique().shape[0]
@@ -386,7 +419,7 @@ class Evaluation:
         # plt.show()
 
     def calculate(self):
-        print(f"Running: {self.target_dir}")
+        self.logger.info(f"Running: {self.target_dir}")
 
         self.load_data()
 
@@ -414,8 +447,7 @@ class Evaluation:
         ) as f:
             json.dump(self.evaluation_results, f)
 
-        print("Done evaluation.")
-        print("--------------------------------------\n")
+        self.logger.info("Done evaluation.")
 
 
 # end of class
