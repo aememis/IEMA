@@ -14,6 +14,7 @@ class Evaluation:
     def __init__(self, target_dir):
         self.target_dir = target_dir
         self.evaluation_results = {}
+        self.dataset = FSD50K()
 
     def load_data(self):
         print("Loading data...")
@@ -50,7 +51,7 @@ class Evaluation:
         plt.ylabel("Variance")
         plt.title("Variance of each population")
         plt.ylim(0, 0.2)
-        plt.savefig(f"{self.target_dir}/population_diversity.png")
+        plt.savefig(f"{self.target_dir}/functional_variance.png")
         # plt.show()
 
     def load_phylo_data(self):
@@ -71,9 +72,7 @@ class Evaluation:
             self.G_plot.add_edge(v, u)
 
     def calculate_pairwise_distances(self):
-        # get max population
-        self.max_pop = self.df_iterations["pop"].max()
-
+        print("\tCalculating pairwise distances...")
         all_mpd_pops = []
         all_pops_unique = (
             pd.Series([node[1]["pop"] for node in self.G_plot.nodes(data=True)])
@@ -81,7 +80,7 @@ class Evaluation:
             .unique()
         )
 
-        # calculate for the last population
+        # calculate for the last population, final version of the tree
         for pop in [self.max_pop]:  # DEL sorted(all_pops_unique):
             leaf_nodes = [
                 n for n in self.G_plot.nodes(data=True) if n[1]["pop"] == pop
@@ -108,7 +107,6 @@ class Evaluation:
                             pairwise_distances[(i, j)] = dist + 1
                     except nx.NetworkXNoPath:
                         no_path.append((i, j))
-                        # print(f"No path between {leaf_nodes[i][0]} and {leaf_nodes[j][0]}")
 
             pairwise_distances_values = np.array(
                 list(pairwise_distances.values())
@@ -120,25 +118,11 @@ class Evaluation:
                 / (len(leaf_nodes) * (len(leaf_nodes) - 1))
             )
             all_mpd_pops.append(mpd_pop)
-            # print(
-            #     f"Population {str(pop).zfill(3)} "
-            #     f"Mean Pairwise Distances: {mpd_pop.round(2)} ",
-            # )
 
-        self.final_mpd = all_mpd_pops[-1]
-
-        # plot
-        # plt.clf()
-        # plt.plot(all_mpd_pops)
-        # plt.xlabel("Population")
-        # plt.ylabel("Mean Pairwise Distance")
-        # plt.title("Mean Pairwise Distances for Each Population")
-        # plt.savefig(
-        #     f"output/{self.record_timestamp}/mean_pairwise_distance.png"
-        # )
-        # plt.show()
+        return all_mpd_pops[-1]  # for the final version of the tree
 
     def calculate_root_contribution_index(self):
+        print("\tCalculating root contribution index...")
         # get the roots based on the condition that they have no incoming edges
         roots = [n for n in self.G.nodes() if self.G.in_degree(n) == 0]
 
@@ -146,6 +130,9 @@ class Evaluation:
         root_contributions = []
         for root in roots:
             descs = nx.descendants(self.G, root)
+            if len(descs) == 0:
+                root_contributions.append(0)
+                continue
             # leaf_descs = [n for n in descs if G.nodes[n]["pop"] == max_pop]
             root_age = self.max_pop - self.G.nodes[root]["pop"]
             contribution = len(descs) / root_age
@@ -153,25 +140,40 @@ class Evaluation:
 
         root_contributions = np.array(root_contributions)
 
-        self.final_rci = root_contributions.sum() / self.G.number_of_nodes()
+        return root_contributions.sum() / self.G.number_of_nodes()
 
     def calculate_phylo_diversity_novelty_index(self):
         print("Calculating phylogenetic diversity and novelty index...")
-        self.calculate_root_contribution_index()
-        self.calculate_pairwise_distances()
+
+        # get max population
+        self.max_pop = self.df_iterations["pop"].max()
+
+        self.final_rci = self.calculate_root_contribution_index()
+        self.final_mpd = self.calculate_pairwise_distances()
         self.final_pdni = self.final_mpd / self.final_rci
 
-        self.evaluation_results["phylo_diversity_novelty_index"] = (
-            self.final_pdni
-        )
+        self.evaluation_results["phylo_diversity_novelty_index"] = {
+            "phylo_diversity_novelty_index": self.final_pdni,
+            "root_contribution_index": self.final_rci,
+            "mean_pairwise_distance": self.final_mpd,
+        }
 
         # plot single point
         plt.clf()
-        plt.scatter(0, self.final_pdni)
-        plt.xlabel("Phylogenetic Diversity Novelty Index")
+        plt.scatter(0, self.final_rci, label="Root Contribution Index")
+        plt.scatter(0, self.final_mpd, label="Mean Pairwise Distance")
+        plt.scatter(
+            0,
+            self.final_pdni,
+            label="Phylogenetic Diversity-Novelty Index",
+            c="r",
+            s=100,
+        )
         plt.title("Phylogenetic Diversity Novelty Index")
         plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
-        for i, txt in enumerate([self.final_pdni]):
+        for i, txt in enumerate(
+            [self.final_rci, self.final_mpd, self.final_pdni]
+        ):
             plt.annotate(
                 f"{txt:.2f}",
                 (0, txt),
@@ -180,7 +182,11 @@ class Evaluation:
                 ha="center",
                 va="center",
             )
-        plt.savefig(f"{self.target_dir}/phylo_diversity_novelty_index.png")
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.savefig(
+            f"{self.target_dir}/phylo_diversity_novelty_index.png",
+            bbox_inches="tight",
+        )
         # plt.show()
 
     def category_change_rate(self):
@@ -191,15 +197,11 @@ class Evaluation:
         whether the algorithm is exploring new categories or sticking to
         established ones. Calculated for each generation
         """
-
-        dataset = FSD50K()
-
-        all_pops_ccr = []
-        input(self.df_iterations["pop"].unique())
+        print("\tCalculating category change rate...")
+        all_pops_ccr = [None]
         for pop in sorted(self.df_iterations["pop"].unique()):
-            if (
-                pop == 0 or pop == 1 or pop == 2
-            ):  #### FIX THIS, pop should start from 1
+            if pop == 0 or pop == 1 or pop == 2:
+                #### /\ FIX THIS, pop should start from 1
                 continue
             df_gen = self.df_iterations.loc[
                 self.df_iterations["pop"] == pop, ["id", "sample_id"]
@@ -207,9 +209,7 @@ class Evaluation:
             df_prev_gen = self.df_iterations.loc[
                 self.df_iterations["pop"] == pop - 1, ["id", "sample_id"]
             ]
-            input(("pop", pop))
-            print(df_prev_gen.columns)
-            input(df_prev_gen)
+            pop_ccr = []
             for i, row in df_gen.iterrows():
                 node_id = row["id"]
                 node_sample_id = row["sample_id"]
@@ -221,9 +221,14 @@ class Evaluation:
                     .explode()
                     .unique()
                 )
+
+                assert pop == self.G.nodes()[node_id]["pop"], "pop mismatch"
+
                 parents = list(self.G_plot.predecessors(node_id))
-                assert pop == self.G.nodes()[node_id]["pop"]
                 parents = [p for p in parents if p in df_prev_gen["id"].values]
+                if len(parents) == 0:
+                    continue
+
                 parents_sample_ids = df_prev_gen.loc[
                     df_prev_gen["id"].isin(parents), "sample_id"
                 ].values
@@ -237,25 +242,38 @@ class Evaluation:
                     .explode()
                     .unique()
                 )
-                print(("parent_cats", parent_cats))
-                input(("node_cats", node_cats))
+                distances = self.dataset.get_distances(node_cats, parent_cats)
 
-                dataset.get_distances(node_cats, parent_cats)
+                if len(distances) == 0:
+                    raise ValueError(
+                        "Distances between dataset categories "
+                        "could not be calculated"
+                    )
+
+                ccr = np.mean(distances)
+                pop_ccr.append(ccr)
+
+            if len(pop_ccr) == 0:
+                input("pop_ccr is empty")
+
+            mean_pop_ccr = np.mean(pop_ccr)
+            all_pops_ccr.append(mean_pop_ccr)
+
+        return all_pops_ccr
 
     def categorical_diversity(self):
-        print("Calculating categorical diversity and novelty index...")
+        print("\tCalculating categorical diversity...")
 
         # Calculate the categorical diversity
         all_pops_cd = []
         for pop in self.df_ontology_lookup["pop"].unique():
             cats = self.df_ontology_lookup.loc[
-                self.df_ontology_lookup["pop"] == pop, "mids_first"
+                self.df_ontology_lookup["pop"] == pop, "mids"
             ]
-            all_pops_cd.append(len(set(cats)) / len(cats))
-
-        self.evaluation_results["categorical_diversity_novelty_index"] = (
-            all_pops_cd
-        )
+            len_pop = len(cats)
+            cats_unique = cats.explode().unique()
+            cd = len(cats_unique) / len_pop
+            all_pops_cd.append(cd)
 
         # plot
         plt.clf()
@@ -269,7 +287,7 @@ class Evaluation:
 
         return all_pops_cd
 
-    def calculate_categorical_diversity_novelty_index(self):
+    def load_ontology_data(self):
         # load the filenames of the audio files
         with open("filenames.pkl", "rb") as f:
             self.df_filenames = pickle.load(f)
@@ -300,13 +318,17 @@ class Evaluation:
             self.df_ontology_lookup.mids.str[0]
         )
 
-        # dataset = Dataset()
-        # self.df_ontology_lookup["mids_level2"] = dataset.get_level2_mids(
-        #     self.df_ontology_lookup.mids
-        # )
+    def calculate_categorical_diversity_novelty_index(self):
+        print("Calculating categorical diversity novelty index...")
 
-        all_pops_cd = self.categorical_diversity()
-        all_pop_ccr = self.category_change_rate()
+        self.all_pops_cd = self.categorical_diversity()
+        self.all_pops_ccr = self.category_change_rate()
+
+        self.evaluation_results["categorical_diversity_novelty_index"] = {
+            "categorical_diversity_novelty_index": None,
+            "categorical_diversity": self.all_pops_cd,
+            "category_change_rate": self.all_pops_ccr,
+        }
 
     def calculate_coverage_metrics(self):
         print("Calculating coverage metrics...")
@@ -343,8 +365,7 @@ class Evaluation:
         plt.clf()
         plt.scatter(0, self.final_dataset_coverage, label="Dataset Coverage")
         plt.scatter(0, self.final_category_coverage, label="Category Coverage")
-        plt.legend()
-        plt.xlabel("Coverage")
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.title("Coverage Metrics")
         plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
         for i, txt in enumerate(
@@ -358,19 +379,26 @@ class Evaluation:
                 ha="center",
                 va="center",
             )
-        plt.savefig(f"{self.target_dir}/data_and_category_coverage.png")
+        plt.savefig(
+            f"{self.target_dir}/data_and_category_coverage.png",
+            bbox_inches="tight",
+        )
         # plt.show()
 
     def calculate(self):
         print(f"Running: {self.target_dir}")
-        self.load_data()
-        # self.calculate_functional_variance()
-        self.load_phylo_data()
-        # self.calculate_phylo_diversity_novelty_index()
-        self.calculate_categorical_diversity_novelty_index()
-        # self.calculate_coverage_metrics()
 
-        print(self.evaluation_results)
+        self.load_data()
+
+        self.calculate_functional_variance()
+
+        self.load_phylo_data()
+        self.calculate_phylo_diversity_novelty_index()
+
+        self.load_ontology_data()
+        self.calculate_categorical_diversity_novelty_index()
+
+        self.calculate_coverage_metrics()
 
         # save the results
         with open(
@@ -386,20 +414,22 @@ class Evaluation:
         ) as f:
             json.dump(self.evaluation_results, f)
 
+        print("Done evaluation.")
+        print("--------------------------------------\n")
+
 
 # end of class
 
 
 def main():
     print("Starting evaluation...")
-    session_timestamp = "20241117_203229"  # test
+    session_timestamp = "20241117_202424"  # test
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
-    print(target_dirs)
     for target_dir in target_dirs:
         evaluation = Evaluation(target_dir)
         evaluation.calculate()

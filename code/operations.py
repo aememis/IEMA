@@ -1,20 +1,19 @@
-import traceback
 import json
-import os
 import logging
+import os
 import pickle
+import traceback
 from datetime import datetime
 from typing import Literal
 
 import config as cfg
+import networkx as nx
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.neighbors import NearestNeighbors
 from umap import UMAP
-
-import networkx as nx
 
 
 class SharedData:

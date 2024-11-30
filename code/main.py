@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 
 import config as cfg
@@ -8,7 +9,6 @@ from corpus_reader import CorpusReader
 from evaluation import Evaluation
 from operations import Operator, SharedData
 from path import Path
-import re
 
 
 def read_run_configs():
