@@ -704,9 +704,9 @@ class Operator:
             self.sd.logger.info(
                 f"Session: {self.sd.session_timestamp} "
                 f"Run: {self.sd.run_id} "
-                f"Path: {self.sd.path_id} "
-                f"Finished iteration {iteration}"
+                f"Path: {self.sd.path_id}"
             )
+            self.sd.logger.info(f"Finished iteration {iteration}")
             self.sd.logger.info("---------------------------------------------")
 
         # save the graph

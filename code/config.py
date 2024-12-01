@@ -3,7 +3,7 @@ import math
 NUMBER_OF_RUNS = 1
 
 NUMBER_OF_ITERATIONS = 50  # 150  # 500
-NUMBER_OF_PATHS = 3
+NUMBER_OF_PATHS = 5
 PROJECTION_METHOD = "tsne"  # "umap"
 CORPUS_METHOD = "gaussian"  # "gaussian"  # "read"
 SAMPLE_RATE = 22050
