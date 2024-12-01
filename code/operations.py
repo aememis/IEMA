@@ -10,6 +10,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.neighbors import NearestNeighbors
 from umap import UMAP
@@ -27,6 +28,7 @@ class SharedData:
             f"path_{str(path_id).zfill(3)}"
         )
         self.output_prefix = ""
+        self.session_dir = f"output/{session_timestamp}"
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
         logger_name = "runs"
@@ -118,8 +120,8 @@ class SharedData:
         )
 
         # Create a file handler
-        log_filename = "application.log"
-        log_filepath = os.path.join(self.output_dir, log_filename)
+        log_filename = "session.log"
+        log_filepath = os.path.join(self.session_dir, log_filename)
         if not os.path.exists(log_filepath):
             open(log_filepath, "w").close()
         file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
@@ -219,6 +221,13 @@ class Operator:
         tsne_data = tsne.fit_transform(self.sd.df_population.iloc[:, :6])
         self.sd.logger.info("Done TSNE projection.")
         return pd.DataFrame(tsne_data)
+
+    def pca_project(self):
+        self.sd.logger.info("PCA projecting the population...")
+        pca = PCA(n_components=3)
+        pca_data = pca.fit_transform(self.sd.df_population.iloc[:, :6])
+        self.sd.logger.info("Done PCA projection.")
+        return pd.DataFrame(pca_data)
 
     def fit_knn(self):
         self.sd.knn = NearestNeighbors(n_neighbors=cfg.K)
@@ -412,9 +421,7 @@ class Operator:
                     new_value = df.iloc[i, j] + (
                         cfg.MUTATION_STRENGTH * np.random.choice([-1, 1])
                     )
-                    df.iloc[i, j] = np.clip(
-                        np.int64(new_value), -1, 1
-                    )  #### added it64 not tested
+                    df.iloc[i, j] = np.clip(np.int64(new_value), -1, 1)
         return df
 
     def draw_all(self, path, list_closest_index_proj):
@@ -537,7 +544,7 @@ class Operator:
             elif cfg.PROJECTION_METHOD == "umap":
                 df_proj = self.umap_project()
             elif cfg.PROJECTION_METHOD == "pca":
-                raise NotImplementedError("PCA projection not implemented.")
+                df_proj = self.pca_project()
             else:
                 raise ValueError("Invalid projection method specified.")
 
@@ -695,8 +702,10 @@ class Operator:
 
             self.sd.logger.info("- - - - - - - - - - - - - - - - - - - - - - -")
             self.sd.logger.info(
-                f"Finished iteration {iteration} for path: {path_id} "
-                f"population: {self.sd.current_population-1}"
+                f"Session: {self.sd.session_timestamp} "
+                f"Run: {self.sd.run_id} "
+                f"Path: {self.sd.path_id} "
+                f"Finished iteration {iteration}"
             )
             self.sd.logger.info("---------------------------------------------")
 
