@@ -485,7 +485,8 @@ class Operator:
             transform=ax.transAxes,
         )
         self.sd.logger.info(
-            f"Scored unique individuals: {sum(self.sd.df_population['score'] == 1)}"
+            "Scored unique individuals: "
+            f"{sum(self.sd.df_population['score'] == 1)}"
         )
         plt.show()
 
@@ -493,8 +494,8 @@ class Operator:
         """Reseed the population with random samples from the corpus."""
         if len(df.index) < cfg.POPULATION_SIZE:
             self.sd.logger.info(
-                "Reseeding the population with "
-                f"{cfg.POPULATION_SIZE - len(df.index)} samples from the corpus."
+                f"Reseeding with {cfg.POPULATION_SIZE - len(df.index)} "
+                "samples from the corpus."
             )
             indices = np.random.choice(
                 self.sd.df_corpus.index, cfg.POPULATION_SIZE - len(df.index)

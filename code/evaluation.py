@@ -292,6 +292,16 @@ class Evaluation:
             mean_pop_ccr = np.mean(pop_ccr)
             all_pops_ccr.append(mean_pop_ccr)
 
+            # plot
+            plt.clf()
+            plt.plot(all_pops_ccr)
+            plt.xlabel("Population")
+            plt.ylabel("Category Change Rate")
+            plt.title("Category change rate for each population")
+            # plt.ylim(0, 1)
+            plt.savefig(f"{self.target_dir}/category_change_rate.png")
+            # plt.show()
+
         return all_pops_ccr
 
     def categorical_diversity(self):
@@ -455,7 +465,7 @@ class Evaluation:
 
 def main():
     print("Starting evaluation...")
-    session_timestamp = "20241117_202424"  # test
+    session_timestamp = "20241220_234554"  # test
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
