@@ -67,9 +67,26 @@ def run_tests(session_timestamp):
         json.dump(run_configs, file, indent=4)
 
     # Run configured tests
-    for run_id, run_config in run_configs.items():
+    # for run_id, run_config in run_configs.items():
+    #     update_config(run_config)
+    #     run(session_timestamp, run_id)
+
+    ### MULTITHREADING NOT TESTED YET
+    def run_with_config(run_id, run_config):
+        print(
+            "PARALLEL RUNNING TESTS FOR SESSION"
+            f" '{session_timestamp}', RUN '{run_id}'"
+        )
         update_config(run_config)
         run(session_timestamp, run_id)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(run_with_config, run_id, run_config)
+            for run_id, run_config in run_configs.items()
+        ]
+        concurrent.futures.wait(futures)
+    ###
 
 
 def evaluate(session_timestamp):
@@ -81,9 +98,12 @@ def evaluate(session_timestamp):
             if re.match(r"path_[0-9]{3}", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
-    for target_dir in target_dirs:
-        evaluation = Evaluation(target_dir)
-        evaluation.calculate()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(Evaluation(target_dir).calculate)
+            for target_dir in target_dirs
+        ]
+        concurrent.futures.wait(futures)
 
 
 def main():
