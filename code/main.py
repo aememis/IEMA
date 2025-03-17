@@ -1,3 +1,4 @@
+import multiprocessing
 import concurrent.futures
 import json
 import os
@@ -53,6 +54,12 @@ def run(session_timestamp, run_id):
         op.operate(path_id, path)
 
 
+def run_with_config(args):
+    session_timestamp, run_id, run_config = args
+    update_config(run_config)
+    run(session_timestamp, run_id)
+
+
 def run_tests(session_timestamp):
     print("Running tests...")
 
@@ -71,22 +78,12 @@ def run_tests(session_timestamp):
     #     update_config(run_config)
     #     run(session_timestamp, run_id)
 
-    ### MULTITHREADING NOT TESTED YET
-    def run_with_config(run_id, run_config):
-        print(
-            "PARALLEL RUNNING TESTS FOR SESSION"
-            f" '{session_timestamp}', RUN '{run_id}'"
-        )
-        update_config(run_config)
-        run(session_timestamp, run_id)
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(run_with_config, run_id, run_config)
-            for run_id, run_config in run_configs.items()
-        ]
-        concurrent.futures.wait(futures)
-    ###
+    arg_list = [
+        (session_timestamp, run_id, run_config)
+        for run_id, run_config in run_configs.items()
+    ]
+    with multiprocessing.Pool(processes=len(run_configs)) as pool:
+        pool.map(run_with_config, arg_list)
 
 
 def evaluate(session_timestamp):
@@ -98,12 +95,16 @@ def evaluate(session_timestamp):
             if re.match(r"path_[0-9]{3}", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(Evaluation(target_dir).calculate)
-            for target_dir in target_dirs
-        ]
-        concurrent.futures.wait(futures)
+    # with concurrent.futures.ThreadPoolExecutor() as executor:
+    #     futures = [
+    #         executor.submit(Evaluation(target_dir).calculate)
+    #         for target_dir in target_dirs
+    #     ]
+    #     concurrent.futures.wait(futures)
+
+    for target_dir in target_dirs:
+        evaluation = Evaluation(target_dir)
+        evaluation.calculate()
 
 
 def main():
