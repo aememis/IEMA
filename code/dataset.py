@@ -136,8 +136,3 @@ class FSD50K(Dataset):
             )
 
         plt.show()
-
-
-if __name__ == "__main__":
-    fsd50k = FSD50K()
-    print(fsd50k.get_distances(["/t/dd00027"], ["/m/0kpv1t"]))

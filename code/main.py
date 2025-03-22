@@ -45,7 +45,7 @@ def run(session_timestamp, run_id):
             df_samples = corpus.get_samples()
         elif cfg.CORPUS_METHOD == "read":
             corpus = CorpusReader(sd)
-            corpus.prepare(source="checkpoint", save=False)
+            corpus.prepare(source=cfg.READ_CORPUS_SOURCE, save=False)
             df_corpus, df_population = corpus.get_as_population()
             df_samples = corpus.get_samples()
 
@@ -74,16 +74,16 @@ def run_tests(session_timestamp):
         json.dump(run_configs, file, indent=4)
 
     # Run configured tests
-    # for run_id, run_config in run_configs.items():
-    #     update_config(run_config)
-    #     run(session_timestamp, run_id)
-
     arg_list = [
         (session_timestamp, run_id, run_config)
         for run_id, run_config in run_configs.items()
     ]
-    with multiprocessing.Pool(processes=len(run_configs)) as pool:
-        pool.map(run_with_config, arg_list)
+    if cfg.RUN_IN_PARALLEL:
+        with multiprocessing.Pool(processes=len(run_configs)) as pool:
+            pool.map(run_with_config, arg_list)
+    else:
+        for args in arg_list:
+            run_with_config(args)
 
 
 def evaluate(session_timestamp):
@@ -117,7 +117,7 @@ def main():
     run_tests(session_timestamp)
     evaluate(session_timestamp)
 
-    input("Done!")
+    print("Done!")
 
 
 if __name__ == "__main__":

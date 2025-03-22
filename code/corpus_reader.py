@@ -2,12 +2,14 @@ import glob
 import os
 import pickle
 import random
+import multiprocessing
 from typing import Literal
 
 import config as cfg
 import librosa
 import numpy as np
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 
 
 class CorpusReader:
@@ -23,13 +25,14 @@ class CorpusReader:
     def read_corpus_from_files(self):
         self.sd.logger.info("Loading the dataset...")
         list_paths = glob.glob(cfg.DATASET_PATH_FSD50K)
-        list_paths = random.sample(list_paths, cfg.CORPUS_SIZE)  ####
+        # list_paths = random.sample(list_paths, cfg.CORPUS_SIZE)  ####
         len_paths = len(list_paths)
-        list_audio = []
-        list_notes = []
+        dict_audio = {}
+        dict_notes = {}
         list_filenames = []
         skipped_count = 0
-        for i, file in enumerate(list_paths):
+
+        def process_file(i, file):
             try:
                 print(f"Loading {str(i).zfill(5)}/{len_paths}", end="\r")
 
@@ -39,7 +42,7 @@ class CorpusReader:
                     len_y < cfg.SAMPLES_THRESHOLD_LOW
                     or len_y > cfg.SAMPLES_THRESHOLD_HIGH
                 ):
-                    continue
+                    return
                 y /= np.max(np.abs(y))
 
                 rms = librosa.feature.rms(
@@ -74,16 +77,30 @@ class CorpusReader:
                     y,
                 ]
                 filename = os.path.basename(file)
-                list_notes.append(notes)
-                list_audio.append(audio)
+                dict_notes[filename] = notes
+                # dict_audio[filename] = audio
                 list_filenames.append(filename)
             except Exception as e:
                 self.sd.logger.warning(f"\nSkipping {file}, error loading: {e}")
-                skipped_count += 1
-                continue
+                # skipped_count += 1
+                return
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            list(
+                executor.map(
+                    lambda args: process_file(*args),
+                    enumerate(list_paths, 1),
+                )
+            )
+
         self.sd.logger.info(
-            f"Loaded {len(list_audio)} files, skipped {skipped_count}."
+            f"Loaded {len(dict_notes)} files"  # , skipped {skipped_count}."
         )
+
+        # random.shuffle(list_filenames)
+
+        list_notes = [dict_notes[filename] for filename in list_filenames]
+        # list_audio = [dict_audio[filename] for filename in list_filenames]
 
         self.df_features = pd.DataFrame(
             list_notes,
@@ -96,12 +113,13 @@ class CorpusReader:
                 "sf",
             ],
         ).reset_index(drop=True)
-        self.df_samples = pd.DataFrame(
-            list_audio,
-            columns=[
-                "signal",
-            ],
-        ).reset_index(drop=True)
+        self.df_samples = None  # temp, samples file not used bc of memory
+        # self.df_samples = pd.DataFrame(
+        #     list_audio,
+        #     columns=[
+        #         "signal",
+        #     ],
+        # ).reset_index(drop=True)
         self.df_filenames = pd.DataFrame(
             list_filenames,
             columns=[
@@ -110,13 +128,17 @@ class CorpusReader:
         ).reset_index(drop=True)
         self.df_filenames["sample_id"] = self.df_filenames.index
 
-        print(self.df_features.describe())
-        print(self.df_samples.describe())
-        print(self.df_filenames.describe())
+        self.sd.logger.info("Compiled samples")
+
+        # self.sd.logger.info(self.df_features.describe())
+        # self.sd.logger.info(self.df_samples.describe())
+        # self.sd.logger.info(self.df_filenames.describe())
 
     def read_corpus_from_saved(self):
         with open("features.pkl", "rb") as f:
             self.df_features_norm = pickle.load(f)
+            self.sd.logger.info("LEN DF")
+            self.sd.logger.info(len(self.df_features_norm))
         with open("samples.pkl", "rb") as f:
             self.df_samples = (
                 None  # pickle.load(f)  # temp, samples file is corrupted
@@ -124,19 +146,42 @@ class CorpusReader:
         with open("filenames.pkl", "rb") as f:
             self.df_filenames = pickle.load(f)
 
+        df_metacoll = pd.read_csv(
+            r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
+        )
+        df_metacoll_valid = df_metacoll[
+            df_metacoll["mids"].notnull() & (df_metacoll["mids"] != "")
+        ]
+        valid_filenames = df_metacoll_valid["fname"].astype(str).to_list()
+        self.df_filenames = self.df_filenames[
+            self.df_filenames["filename"]
+            .apply(lambda x: os.path.splitext(x)[0])
+            .astype(str)
+            .isin(valid_filenames)
+        ]
+        self.df_features_norm = self.df_features_norm[
+            self.df_features_norm.index.isin(self.df_filenames.index)
+        ]
+        self.df_filenames = self.df_filenames.reset_index(drop=True)
+        self.df_features_norm = self.df_features_norm.reset_index(drop=True)
+        self.sd.logger.info(
+            f"Dropped {len(df_metacoll) - len(df_metacoll_valid)} invalid files"
+        )
+
     def save_corpus(self):
         self.sd.logger.info("Saving corpus...")
         with open("features_raw.pkl", "wb") as file:
             pickle.dump(self.df_features, file)
         with open("features.pkl", "wb") as file:
             pickle.dump(self.df_features_norm, file)
-        with open("samples.pkl", "wb") as file:
-            pickle.dump(self.df_samples, file)
+        # with open("samples.pkl", "wb") as file:
+        #     pickle.dump(self.df_samples, file)
         with open("filenames.pkl", "wb") as file:
             pickle.dump(self.df_filenames, file)
         self.sd.logger.info(f"Corpus saved with size: {len(self.df_features)}")
 
     def normalize_corpus(self):
+        self.sd.logger.info("Normalizing corpus...")
         self.df_features_norm = self.df_features.copy(deep=True)
         for col in [
             "rms",
@@ -146,6 +191,7 @@ class CorpusReader:
             "sc",
             "sf",
         ]:
+            self.sd.logger.info(f"Normalizing {col}")
             min_val = self.df_features[col].min()
             max_val = self.df_features[col].max()
             self.df_features_norm[col] = (self.df_features[col] - min_val) / (

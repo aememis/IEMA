@@ -1,11 +1,13 @@
 import math
 
+RUN_IN_PARALLEL = True
 NUMBER_OF_RUNS = 1
 
 NUMBER_OF_ITERATIONS = 50  # 150  # 500
 NUMBER_OF_PATHS = 5
 PROJECTION_METHOD = "tsne"  # "umap"
 CORPUS_METHOD = "gaussian"  # "gaussian"  # "read"
+READ_CORPUS_SOURCE = "checkpoint"  # "files"  # "checkpoint"
 SAMPLE_RATE = 22050
 POPULATION_SIZE = 200
 CORPUS_SIZE = 40000
