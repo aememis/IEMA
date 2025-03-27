@@ -21,18 +21,27 @@ def read_run_configs():
 
 def update_config(run_config):
     for key, value in run_config.items():
-        setattr(cfg, key, value)
+        if isinstance(value, str) and value.lower() == "true":
+            setattr(cfg, key, True)
+        elif isinstance(value, str) and value.lower() == "false":
+            setattr(cfg, key, False)
+        else:
+            setattr(cfg, key, value)
 
 
 def run(session_timestamp, run_id):
     print(f"Running tests for session '{session_timestamp}', run '{run_id}'")
 
     paths = Path.get_or_create_paths(source="file")
-    assert cfg.NUMBER_OF_PATHS == len(paths), (
-        "Number of paths does not match the config. "
-        f"The config has '{cfg.NUMBER_OF_PATHS}' paths but "
-        f"the file has '{len(paths)}' paths."
-    )
+
+    if cfg.ADAPT_NUMBER_OF_PATHS:
+        paths = paths[: cfg.NUMBER_OF_PATHS]
+    else:
+        assert cfg.NUMBER_OF_PATHS == len(paths), (
+            "Number of paths does not match the config. "
+            f"The config has '{cfg.NUMBER_OF_PATHS}' paths but "
+            f"the file has '{len(paths)}' paths."
+        )
 
     for path_id, path in enumerate(paths, 1):
         sd = SharedData(session_timestamp, run_id, path_id)
@@ -93,18 +102,20 @@ def evaluate(session_timestamp):
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
+                # if re.match(r"path_001", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
-    # with concurrent.futures.ThreadPoolExecutor() as executor:
-    #     futures = [
-    #         executor.submit(Evaluation(target_dir).calculate)
-    #         for target_dir in target_dirs
-    #     ]
-    #     concurrent.futures.wait(futures)
-
-    for target_dir in target_dirs:
-        evaluation = Evaluation(target_dir)
-        evaluation.calculate()
+    if cfg.RUN_IN_PARALLEL:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(Evaluation(target_dir).calculate)
+                for target_dir in target_dirs
+            ]
+            concurrent.futures.wait(futures)
+    else:
+        for target_dir in target_dirs:
+            evaluation = Evaluation(target_dir)
+            evaluation.calculate()
 
 
 def main():

@@ -1,8 +1,11 @@
+from datetime import datetime
 import json
 import logging
 import os
 import pickle
 import re
+import config as cfg
+import concurrent.futures
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -12,11 +15,13 @@ from dataset import FSD50K
 
 
 class Evaluation:
-    def __init__(self, target_dir):
+    def __init__(self, target_dir, df_filenames=None, df_metacoll=None):
+        self.df_filenames = df_filenames
+        self.df_metacoll = df_metacoll
         self.target_dir = target_dir
         self.evaluation_results = {}
         self.dataset = FSD50K()
-        logger_name = "evaluation"
+        logger_name = self.target_dir
         if not logging.getLogger(logger_name).hasHandlers():
             self.logger = self._create_logger(logger_name)
         else:
@@ -75,15 +80,16 @@ class Evaluation:
 
         self.evaluation_results["functional_variance"] = self.all_pops_var
 
-        # plot
-        plt.clf()
-        plt.plot(self.all_pops_var)
-        plt.xlabel("Population")
-        plt.ylabel("Variance")
-        plt.title("Variance of each population")
-        plt.ylim(0, 0.2)
-        plt.savefig(f"{self.target_dir}/functional_variance.png")
-        # plt.show()
+        if cfg.PLOT_IN_EVALUATION:
+            # plot
+            plt.clf()
+            plt.plot(self.all_pops_var)
+            plt.xlabel("Population")
+            plt.ylabel("Variance")
+            plt.title("Variance of each population")
+            plt.ylim(0, 0.2)
+            plt.savefig(f"{self.target_dir}/functional_variance.png")
+            # plt.show()
 
     def load_phylo_data(self):
         # load the graph to nx
@@ -191,36 +197,37 @@ class Evaluation:
             "mean_pairwise_distance": self.final_mpd,
         }
 
-        # plot single point
-        plt.clf()
-        plt.scatter(0, self.final_rci, label="Root Contribution Index")
-        plt.scatter(0, self.final_mpd, label="Mean Pairwise Distance")
-        plt.scatter(
-            0,
-            self.final_pdni,
-            label="Phylogenetic Diversity-Novelty Index",
-            c="r",
-            s=100,
-        )
-        plt.title("Phylogenetic Diversity Novelty Index")
-        plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
-        for i, txt in enumerate(
-            [self.final_rci, self.final_mpd, self.final_pdni]
-        ):
-            plt.annotate(
-                f"{txt:.2f}",
-                (0, txt),
-                textcoords="offset points",
-                xytext=(20, 0),
-                ha="center",
-                va="center",
+        if cfg.PLOT_IN_EVALUATION:
+            # plot single point
+            plt.clf()
+            plt.scatter(0, self.final_rci, label="Root Contribution Index")
+            plt.scatter(0, self.final_mpd, label="Mean Pairwise Distance")
+            plt.scatter(
+                0,
+                self.final_pdni,
+                label="Phylogenetic Diversity-Novelty Index",
+                c="r",
+                s=100,
             )
-        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(
-            f"{self.target_dir}/phylo_diversity_novelty_index.png",
-            bbox_inches="tight",
-        )
-        # plt.show()
+            plt.title("Phylogenetic Diversity Novelty Index")
+            plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
+            for i, txt in enumerate(
+                [self.final_rci, self.final_mpd, self.final_pdni]
+            ):
+                plt.annotate(
+                    f"{txt:.2f}",
+                    (0, txt),
+                    textcoords="offset points",
+                    xytext=(20, 0),
+                    ha="center",
+                    va="center",
+                )
+            plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+            plt.savefig(
+                f"{self.target_dir}/phylo_diversity_novelty_index.png",
+                bbox_inches="tight",
+            )
+            # plt.show()
 
     def category_change_rate(self):
         """The change in categories from the
@@ -238,42 +245,41 @@ class Evaluation:
                 continue
             df_gen = self.df_iterations.loc[
                 self.df_iterations["pop"] == pop, ["id", "sample_id"]
-            ]
+            ].copy()
             df_prev_gen = self.df_iterations.loc[
                 self.df_iterations["pop"] == pop - 1, ["id", "sample_id"]
-            ]
+            ].copy()
+            df_gen["node_cats"] = df_gen["sample_id"].apply(
+                lambda sample_id: self.df_ontology_lookup.loc[
+                    self.df_ontology_lookup["sample_id"] == sample_id, "mids"
+                ]
+                .explode()
+                .unique()
+            )
+            df_prev_gen["parent_cats"] = df_prev_gen["sample_id"].apply(
+                lambda sample_id: self.df_ontology_lookup.loc[
+                    self.df_ontology_lookup["sample_id"] == sample_id, "mids"
+                ]
+                .explode()
+                .unique()
+            )
+
             pop_ccr = []
             for i, row in df_gen.iterrows():
                 node_id = row["id"]
-                node_sample_id = row["sample_id"]
-                node_cats = (
-                    self.df_ontology_lookup.loc[
-                        self.df_ontology_lookup["sample_id"] == node_sample_id,
-                        "mids",
-                    ]
-                    .explode()
-                    .unique()
-                )
+                node_cats = row["node_cats"]
 
                 assert pop == self.G.nodes()[node_id]["pop"], "pop mismatch"
 
                 parents = list(self.G_plot.predecessors(node_id))
                 parents = [p for p in parents if p in df_prev_gen["id"].values]
-                if len(parents) == 0:
+                if not parents:
                     continue
 
-                parents_sample_ids = df_prev_gen.loc[
-                    df_prev_gen["id"].isin(parents), "sample_id"
-                ].values
-                parent_cats = (
-                    self.df_ontology_lookup.loc[
-                        self.df_ontology_lookup["sample_id"].isin(
-                            parents_sample_ids
-                        ),
-                        "mids",
-                    ]
-                    .explode()
-                    .unique()
+                parent_cats = np.concatenate(
+                    df_prev_gen.loc[
+                        df_prev_gen["id"].isin(parents), "parent_cats"
+                    ].values
                 )
                 distances = self.dataset.get_distances(node_cats, parent_cats)
 
@@ -283,8 +289,7 @@ class Evaluation:
                         "could not be calculated"
                     )
 
-                ccr = np.mean(distances)
-                pop_ccr.append(ccr)
+                pop_ccr.append(np.mean(distances))
 
             if len(pop_ccr) == 0:
                 input("pop_ccr is empty")
@@ -292,15 +297,16 @@ class Evaluation:
             mean_pop_ccr = np.mean(pop_ccr)
             all_pops_ccr.append(mean_pop_ccr)
 
-            # plot
-            plt.clf()
-            plt.plot(all_pops_ccr)
-            plt.xlabel("Population")
-            plt.ylabel("Category Change Rate")
-            plt.title("Category change rate for each population")
-            # plt.ylim(0, 1)
-            plt.savefig(f"{self.target_dir}/category_change_rate.png")
-            # plt.show()
+            if cfg.PLOT_IN_EVALUATION:
+                # plot
+                plt.clf()
+                plt.plot(all_pops_ccr)
+                plt.xlabel("Population")
+                plt.ylabel("Category Change Rate")
+                plt.title("Category change rate for each population")
+                # plt.ylim(0, 1)
+                plt.savefig(f"{self.target_dir}/category_change_rate.png")
+                # plt.show()
 
         return all_pops_ccr
 
@@ -318,32 +324,33 @@ class Evaluation:
             cd = len(cats_unique) / len_pop
             all_pops_cd.append(cd)
 
-        # plot
-        plt.clf()
-        plt.plot(all_pops_cd)
-        plt.xlabel("Population")
-        plt.ylabel("Mean Category Diversity")
-        plt.title("Mean category diversity for each population")
-        plt.ylim(0, 1)
-        plt.savefig(f"{self.target_dir}/category_diversity.png")
-        # plt.show()
+        if cfg.PLOT_IN_EVALUATION:
+            # plot
+            plt.clf()
+            plt.plot(all_pops_cd)
+            plt.xlabel("Population")
+            plt.ylabel("Mean Category Diversity")
+            plt.title("Mean category diversity for each population")
+            plt.ylim(0, 1)
+            plt.savefig(f"{self.target_dir}/category_diversity.png")
+            # plt.show()
 
         return all_pops_cd
 
     def load_ontology_data(self):
         # load the filenames of the audio files
-        with open("filenames.pkl", "rb") as f:
-            self.df_filenames = pickle.load(f)
-        self.df_filenames.filename = self.df_filenames.filename.apply(
-            os.path.splitext
-        ).str[0]
+        # with open("filenames.pkl", "rb") as f:
+        #     self.df_filenames = pickle.load(f)
+        # self.df_filenames.filename = self.df_filenames.filename.apply(
+        #     os.path.splitext
+        # ).str[0]
 
         # Load the metadata file
-        self.df_metacoll = pd.read_csv(
-            r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
-        )
-        self.df_metacoll.mids = self.df_metacoll.mids.str.split(",")
-        self.df_metacoll.fname = self.df_metacoll.fname.astype(str)
+        # self.df_metacoll = pd.read_csv(
+        #     r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
+        # )
+        # self.df_metacoll.mids = self.df_metacoll.mids.str.split(",")
+        # self.df_metacoll.fname = self.df_metacoll.fname.astype(str)
 
         # Merge the metadata with the filenames
         self.df_iter_w_filename = self.df_iterations.merge(
@@ -360,6 +367,10 @@ class Evaluation:
         self.df_ontology_lookup["mids_first"] = (
             self.df_ontology_lookup.mids.str[0]
         )
+
+        self.df_ontology_lookup = self.df_ontology_lookup[
+            ["sample_id", "mids", "mids_first", "fname", "pop"]
+        ]
 
     def calculate_categorical_diversity_novelty_index(self):
         self.logger.info("Calculating categorical diversity novelty index...")
@@ -389,6 +400,11 @@ class Evaluation:
         n_of_unique_categories = (
             self.df_ontology_lookup["mids_first"].unique().shape[0]
         )
+        n_of_unique_categories_allmids = (
+            pd.Series(self.df_ontology_lookup["mids"].explode())
+            .unique()
+            .shape[0]
+        )
         n_of_categories = (
             self.df_metacoll["mids"]
             .apply(lambda x: x[0] if x is not np.nan else np.nan)
@@ -399,34 +415,45 @@ class Evaluation:
         self.final_category_coverage = (
             n_of_unique_categories / n_of_categories * 100
         )
+        self.final_category_coverage_allmids = (
+            n_of_unique_categories_allmids / n_of_categories * 100
+        )
 
         self.evaluation_results["category_coverage"] = (
             self.final_category_coverage
         )
+        self.evaluation_results["category_coverage_allmids"] = (
+            self.final_category_coverage_allmids
+        )
 
         # plot two points with labels
-        plt.clf()
-        plt.scatter(0, self.final_dataset_coverage, label="Dataset Coverage")
-        plt.scatter(0, self.final_category_coverage, label="Category Coverage")
-        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.title("Coverage Metrics")
-        plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
-        for i, txt in enumerate(
-            [self.final_dataset_coverage, self.final_category_coverage]
-        ):
-            plt.annotate(
-                f"{txt:.2f}",
-                (0, txt),
-                textcoords="offset points",
-                xytext=(20, 0),
-                ha="center",
-                va="center",
+        if cfg.PLOT_IN_EVALUATION:
+            plt.clf()
+            plt.scatter(
+                0, self.final_dataset_coverage, label="Dataset Coverage"
             )
-        plt.savefig(
-            f"{self.target_dir}/data_and_category_coverage.png",
-            bbox_inches="tight",
-        )
-        # plt.show()
+            plt.scatter(
+                0, self.final_category_coverage, label="Category Coverage"
+            )
+            plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+            plt.title("Coverage Metrics")
+            plt.grid(axis="y", color="grey", linestyle="--", linewidth=0.5)
+            for i, txt in enumerate(
+                [self.final_dataset_coverage, self.final_category_coverage]
+            ):
+                plt.annotate(
+                    f"{txt:.2f}",
+                    (0, txt),
+                    textcoords="offset points",
+                    xytext=(20, 0),
+                    ha="center",
+                    va="center",
+                )
+            plt.savefig(
+                f"{self.target_dir}/data_and_category_coverage.png",
+                bbox_inches="tight",
+            )
+            # plt.show()
 
     def calculate(self):
         self.logger.info(f"Running: {self.target_dir}")
@@ -465,16 +492,40 @@ class Evaluation:
 
 def main():
     print("Starting evaluation...")
-    session_timestamp = "20241220_234554"  # test
+    session_timestamp = "20250325_032128"  # test
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
+                # if re.match(r"path_001", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
-    for target_dir in target_dirs:
-        evaluation = Evaluation(target_dir)
-        evaluation.calculate()
+    # Load the filenames
+    with open("filenames.pkl", "rb") as f:
+        df_filenames = pickle.load(f)
+    df_filenames.filename = df_filenames.filename.apply(os.path.splitext).str[0]
+
+    # Load the metadata
+    df_metacoll = pd.read_csv(
+        r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
+    )
+    df_metacoll.mids = df_metacoll.mids.str.split(",")
+    df_metacoll.fname = df_metacoll.fname.astype(str)
+
+    if False:
+        # cfg.RUN_IN_PARALLEL: ### problem: processing only the path 1 for each run
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    Evaluation(target_dir, df_filenames, df_metacoll).calculate
+                )
+                for target_dir in target_dirs
+            ]
+            concurrent.futures.wait(futures)
+    else:
+        for target_dir in target_dirs:
+            evaluation = Evaluation(target_dir, df_filenames, df_metacoll)
+            evaluation.calculate()
 
     print(session_timestamp)
     print("Done evaluation!")

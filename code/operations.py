@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.neighbors import NearestNeighbors
 from umap import UMAP
+from sklearn.manifold import Isomap
 
 
 class SharedData:
@@ -31,7 +32,7 @@ class SharedData:
         self.session_dir = f"output/{session_timestamp}"
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        logger_name = "runs"
+        logger_name = self.output_dir
         if not logging.getLogger(logger_name).hasHandlers():
             self.logger = self._create_logger(logger_name)
         else:
@@ -64,6 +65,7 @@ class SharedData:
             ),
             "k_closest_in_corpus": cfg.K_CLOSEST_IN_CORPUS,
             "augment_ratio_crossover": cfg.AUGMENT_RATIO_CROSSOVER,
+            "unique_closest_in_corpus": cfg.UNIQUE_CLOSEST_IN_CORPUS,
             "note": cfg.NOTE,
         }
         path_metadata_output = os.path.join(
@@ -199,6 +201,16 @@ class Operator:
         ax.set_ylabel("Y Label")
         ax.set_zlabel("Z Label")
         # plt.show()
+
+    def isomap_project(self):
+        self.sd.logger.info("Isomap projecting the population...")
+        isomap = Isomap(
+            n_components=3,
+            # n_neighbors=10,
+        )
+        isomap_data = isomap.fit_transform(self.sd.df_population.iloc[:, :6])
+        self.sd.logger.info("Done Isomap projection.")
+        return pd.DataFrame(isomap_data)
 
     def umap_project(self):
         self.sd.logger.info("UMAP projecting the population...")
@@ -546,6 +558,8 @@ class Operator:
                 df_proj = self.umap_project()
             elif cfg.PROJECTION_METHOD == "pca":
                 df_proj = self.pca_project()
+            elif cfg.PROJECTION_METHOD == "isomap":
+                df_proj = self.isomap_project()
             else:
                 raise ValueError("Invalid projection method specified.")
 
@@ -611,14 +625,41 @@ class Operator:
                 """Find the closest point in the corpus for each
                 individual in the population.
                 """
+                # df_corpus_unselected_before = self.sd.df_corpus[
+                #     ~self.sd.df_corpus["id"].isin(df["id"].values)
+                # ]
                 distances = self.sd.df_corpus.iloc[:, :6] - df.iloc[i, :6]
                 distances_norm = np.linalg.norm(
                     distances.astype(float),
                     axis=1,
                 )
                 closest_indices = np.argsort(distances_norm)[
-                    : cfg.K_CLOSEST_IN_CORPUS
+                    :1  # cfg.K_CLOSEST_IN_CORPUS
                 ]
+                # print(closest_indices)
+
+                if cfg.UNIQUE_CLOSEST_IN_CORPUS:
+                    if not self.sd.df_analysis_population.empty:
+                        used_sample_ids = set(
+                            self.sd.df_analysis_population.sample_id.values
+                        )
+                        for i_closest in range(len(self.sd.df_corpus.index)):
+                            candidate_sample_id = self.sd.df_corpus.iloc[
+                                closest_indices, :
+                            ].sample_id.values[0]
+                            if candidate_sample_id not in used_sample_ids:
+                                break
+                            closest_indices = np.argsort(distances_norm)[
+                                i_closest : i_closest + 1
+                            ]
+                        else:
+                            self.sd.logger.warning(
+                                "No unique closest individual left."
+                            )
+                            raise ValueError(
+                                "No unique closest individual left."
+                            )
+
                 list_closest_indices.extend(closest_indices)
             self.sd.logger.info(
                 f"Done calculating the distances with the corpus"
