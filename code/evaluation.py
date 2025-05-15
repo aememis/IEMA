@@ -492,7 +492,7 @@ class Evaluation:
 
 def main():
     print("Starting evaluation...")
-    session_timestamp = "20250325_032128"  # test
+    session_timestamp = "20250406_093323"  # test
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:

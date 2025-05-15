@@ -324,12 +324,13 @@ class Operator:
         np.random.shuffle(indices)
 
         # augment the indices to have more pairs
-        indices = np.append(
-            indices,
-            np.random.choice(
-                indices, int(len(indices) * cfg.AUGMENT_RATIO_CROSSOVER)
-            ),
-        )
+        if cfg.AUGMENT_RATIO_CROSSOVER > 0:
+            indices = np.append(
+                indices,
+                np.random.choice(
+                    indices, int(len(indices) * cfg.AUGMENT_RATIO_CROSSOVER)
+                ),
+            )
 
         if len(indices) % 2 != 0:
             self.sd.logger.warning(
