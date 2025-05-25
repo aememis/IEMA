@@ -1,28 +1,25 @@
 # IEMA: Exploring Complex Data Spaces with Body-Motion Interaction
-> **Interactive Evolutionary Motion-controlled Algorithm 🎶🤖**
+<!-- > **Interactive Evolutionary Motion-controlled Algorithm 🎶🤖** -->
 
-Welcome to the open-source repository for the **Interactive Evolutionary Motion-controlled Algorithm (IEMA)**. This repository provides the codebase for running the IEMA, conducting evaluation tests, and serves as a reference for the research and development of the system. It facilitates the exploration of complex data spaces using evolutionary algorithms with user interaction, specifically within the domain of interactive music systems.
+Welcome to the open-source home of the **Interactive Evolutionary Motion-controlled Algorithm (IEMA)**! This repository is your gateway to a novel approach for navigating and discovering structure in complex data spaces, powered by evolutionary algorithms and body interaction. Here, you’ll find everything you need to run IEMA, experiment with its evaluation framework, and dive into the research that inspired its creation.
+
+IEMA is designed for researchers, developers, and artists interested in interactive music systems and intelligent audio retrieval. By blending evolutionary search with real-time body-motion control, IEMA transforms the process of exploring high-dimensional audio datasets into an intuitive, creative, and engaging experience. This repository provides the tools and documentation to get you started.
+
+Please do not hesitate to reach out if you have any questions or feedback!
 
 ## Table of Contents 📚
 
-1. [About](#about)
+1. [About the Research](#about)
 2. [Installation](#installation)
 3. [Usage](#usage)
-4. [Directory Structure](#directory-structure)
-5. [Evaluation Tests](#evaluation-tests)
-6. [License](#license)
-7. [Contact](#contact)
+4. [Contact](#contact)
 
-## About 📖
 
-IEMA explores the application of evolutionary algorithms (EA) in an interactive music system. It adapts its search process based on user feedback, using body-motion interaction to guide the exploration of soundscapes. The system leverages concepts like **novel selection**, **dimensionality reduction** (e.g., PCA and t-SNE), and **augmented crossover** to dynamically evolve the sound samples and improve user-driven music composition.
+## About the Research 📖
 
-This repository contains the code for:
+Interactive search in complex data spaces is a crucial and challenging task in audio data retrieval field, where efficient methods are needed to recommend users relevant content from vast audio databases. This task can be addressed through various approaches, often combining multiple techniques together. This thesis proposes the Immersive Evolutionary Motion-controlled Algorithm (IEMA), an interactive system that combines Interactive Evolutionary Algorithms and body motion interaction to guide the exploration of discrete audio data. To aid in the design of such systems, it also presents an evaluation framework that informs how to develop and assess similar interactive evolutionary systems. Through stage-wise prototype design and experimentation, the thesis demonstrates the applicability of IEMA for high-dimensional discrete audio search. The thesis also shares the software implementation of IEMA as open-source. Furthermore, it highlights potential areas for future research in the field of interactive evolutionary music systems[^1].
 
-- Running the IEMA algorithm
-- Evaluating different configurations of the system
-- Preprocessing and analyzing datasets
-- Visualizing results
+[^1]: [Memis, A. E. (2025). IEMA: Exploring Complex Data Spaces with Body-Motion Interaction. Master's thesis, University of Oslo.](https://www.duo.uio.no/)
 
 ## Installation ⚙️
 
@@ -39,27 +36,11 @@ To get started with IEMA, follow these steps:
    pip install -r requirements.txt
    ```
 
-3. **Usage**:
-    ...
+## Usage 🪡
 
-4. **Directory Structure** 📂
-  <!-- ```
-  .
-  ├── code/                  # Main codebase for running and evaluating IEMA
-  │  ├── config.py           # Configuration settings for the algorithm
-  │  ├── corpus_gauss.py     # Handles Gaussian sampling for the corpus
-  │  ├── dataset.py          # Dataset loading and preprocessing
-  │  ├── evaluation.py       # Evaluation scripts for testing IEMA performance
-  │  ├── individual.py       # Defines the individual representation in IEMA
-  │  ├── main.py             # Entry point for running IEMA
-  │  ├── operations.py       # Evolutionary operations and utilities
-  │  ├── path.py             # Path handling for data analysis
-  │  └── plot_results.ipynb  # Results visualization
-  ├── analyze_datasets/      # Scripts and data for dataset analysis
-  │  └── fsd50k/             # FSD50K dataset folder (example)
-  ├── output/                # Output of IEMA runs and results
-  └── precomputed/           # Precomputed features and samples
-  ``` -->
+    *more coming soon...*
+
+### **Directory Structure** 📂
 
 ```bash
 .
@@ -103,4 +84,12 @@ To get started with IEMA, follow these steps:
             paths.pkl
             samples.pkl
 ```
-<!-- > [Detailed Explanation for the repo directory](https://github.com/aememis/thesis/blob/main/directory_tree.txt) -->
+
+## Contact 📫
+
+    Ahmet Emin Memis 🤷‍♂️
+    - **[Email 📨](mailto:ahmeteminmemis@gmail.com)**
+    - **[GitHub 🐱](https://github.com/aememis)**
+    - **[LinkedIn 💼](https://www.linkedin.com/in/aememis/)**
+
+🎶🤖
