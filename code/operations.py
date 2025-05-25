@@ -18,6 +18,11 @@ from sklearn.manifold import Isomap
 
 
 class SharedData:
+    """SharedData is a container for all data and state shared across different
+    components and threads, including the operator and evaluation logic.
+    It manages configuration, logging, metadata, and runtime variables.
+    """
+
     def __init__(self, session_timestamp, run_id, path_id):
         self.start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_timestamp = session_timestamp
@@ -161,7 +166,7 @@ class Operator:
                 sample_id=self.sd.df_population.iloc[pop_i, -2],
             )
 
-        # temp commented out, bc df_samples is corrupted and not used
+        # currently not supported as it's not needed for the research
         # self.sd.df_samples = df_samples.copy(deep=True)
         self.sd.logger.info(
             f"Corpus had {len(self.sd.df_corpus.index)} samples"
@@ -200,13 +205,11 @@ class Operator:
         ax.set_xlabel("X Label")
         ax.set_ylabel("Y Label")
         ax.set_zlabel("Z Label")
-        # plt.show()
 
     def isomap_project(self):
         self.sd.logger.info("Isomap projecting the population...")
         isomap = Isomap(
             n_components=3,
-            # n_neighbors=10,
         )
         isomap_data = isomap.fit_transform(self.sd.df_population.iloc[:, :6])
         self.sd.logger.info("Done Isomap projection.")
@@ -219,16 +222,13 @@ class Operator:
         )
         umap_data = umap_model.fit_transform(self.sd.df_population.iloc[:, :6])
         self.sd.logger.info("Done UMAP projection.")
-        # self.draw_projection(umap_data)
 
         return pd.DataFrame(umap_data)
 
     def tsne_project(self):
         tsne = TSNE(
             n_components=3,
-            # random_state=42,
             perplexity=10,
-            # early_exaggeration=8,
         )
         tsne_data = tsne.fit_transform(self.sd.df_population.iloc[:, :6])
         self.sd.logger.info("Done TSNE projection.")
@@ -437,7 +437,7 @@ class Operator:
                     df.iloc[i, j] = np.clip(np.int64(new_value), -1, 1)
         return df
 
-    def draw_all(self, path, list_closest_index_proj):
+    def draw_all(self, path):
         # draw projection and the selected individuals along with the path,
         # in different color and 3D
         fig = plt.figure()
@@ -566,13 +566,12 @@ class Operator:
 
             df_proj_norm = self.normalize_projection_data(df_proj)
 
-            # temp using 'tsne' name for convenience,
-            # can be any projection method
+            # using 'tsne' name for convenience,
+            # however, it can be any projection method as selected in config
             self.sd.df_tsne = df_proj_norm
 
             self.fit_knn()
 
-            # list_closest_index_proj = self.get_and_rate_selected(path)
             list_closest_index_proj = self.get_and_rate_selected_random(path)
 
             df_top = self.apply_selection(cfg.SELECTION_THRESHOLD_DIVISOR)
@@ -603,9 +602,8 @@ class Operator:
 
             # elitist selection, bring the top-scoring individuals to
             # the next population
+            # currently not supported, as it is not needed for the research
             if cfg.ELITIST_SELECTION == "true":
-                ### IF ENABLING, CHECK IF THESE ARE ASSIGNED WITH
-                ### A CORRECT ID, PROBABLY NOT
                 sample_size = cfg.POPULATION_SIZE - len(df.index)
                 df = df.sample(sample_size).reset_index(drop=True)
                 df = pd.concat([df, df_top], ignore_index=True)
@@ -626,9 +624,6 @@ class Operator:
                 """Find the closest point in the corpus for each
                 individual in the population.
                 """
-                # df_corpus_unselected_before = self.sd.df_corpus[
-                #     ~self.sd.df_corpus["id"].isin(df["id"].values)
-                # ]
                 distances = self.sd.df_corpus.iloc[:, :6] - df.iloc[i, :6]
                 distances_norm = np.linalg.norm(
                     distances.astype(float),
@@ -637,7 +632,6 @@ class Operator:
                 closest_indices = np.argsort(distances_norm)[
                     :1  # cfg.K_CLOSEST_IN_CORPUS
                 ]
-                # print(closest_indices)
 
                 if cfg.UNIQUE_CLOSEST_IN_CORPUS:
                     if not self.sd.df_analysis_population.empty:

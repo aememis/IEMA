@@ -1,11 +1,9 @@
-from datetime import datetime
 import json
 import logging
 import os
 import pickle
 import re
 import config as cfg
-import concurrent.futures
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -56,7 +54,9 @@ class Evaluation:
         self.logger.info("Loading data...")
 
         # load the audio features
-        with open("features.pkl", "rb") as f:  # gaussian_features_norm.pkl
+        with open(
+            "precomputed/features.pkl", "rb"
+        ) as f:  # gaussian_features_norm.pkl
             df_features = pickle.load(f)
         self.nd_features = df_features.values
 
@@ -89,7 +89,6 @@ class Evaluation:
             plt.title("Variance of each population")
             plt.ylim(0, 0.2)
             plt.savefig(f"{self.target_dir}/functional_variance.png")
-            # plt.show()
 
     def load_phylo_data(self):
         # load the graph to nx
@@ -98,8 +97,6 @@ class Evaluation:
             "rb",
         ) as f:
             self.G = pickle.load(f)
-
-        # G.number_of_nodes()
 
         # get a copy of the graph
         self.G_plot = self.G.copy()
@@ -227,7 +224,6 @@ class Evaluation:
                 f"{self.target_dir}/phylo_diversity_novelty_index.png",
                 bbox_inches="tight",
             )
-            # plt.show()
 
     def category_change_rate(self):
         """The change in categories from the
@@ -240,8 +236,8 @@ class Evaluation:
         self.logger.info("\tCalculating category change rate...")
         all_pops_ccr = [None]
         for pop in sorted(self.df_iterations["pop"].unique()):
+            # skip first generations as they don't have past generations
             if pop == 0 or pop == 1 or pop == 2:
-                #### /\ FIX THIS, pop should start from 1
                 continue
             df_gen = self.df_iterations.loc[
                 self.df_iterations["pop"] == pop, ["id", "sample_id"]
@@ -298,15 +294,12 @@ class Evaluation:
             all_pops_ccr.append(mean_pop_ccr)
 
             if cfg.PLOT_IN_EVALUATION:
-                # plot
                 plt.clf()
                 plt.plot(all_pops_ccr)
                 plt.xlabel("Population")
                 plt.ylabel("Category Change Rate")
                 plt.title("Category change rate for each population")
-                # plt.ylim(0, 1)
                 plt.savefig(f"{self.target_dir}/category_change_rate.png")
-                # plt.show()
 
         return all_pops_ccr
 
@@ -338,20 +331,6 @@ class Evaluation:
         return all_pops_cd
 
     def load_ontology_data(self):
-        # load the filenames of the audio files
-        # with open("filenames.pkl", "rb") as f:
-        #     self.df_filenames = pickle.load(f)
-        # self.df_filenames.filename = self.df_filenames.filename.apply(
-        #     os.path.splitext
-        # ).str[0]
-
-        # Load the metadata file
-        # self.df_metacoll = pd.read_csv(
-        #     r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
-        # )
-        # self.df_metacoll.mids = self.df_metacoll.mids.str.split(",")
-        # self.df_metacoll.fname = self.df_metacoll.fname.astype(str)
-
         # Merge the metadata with the filenames
         self.df_iter_w_filename = self.df_iterations.merge(
             self.df_filenames, on="sample_id", how="left"
@@ -453,7 +432,6 @@ class Evaluation:
                 f"{self.target_dir}/data_and_category_coverage.png",
                 bbox_inches="tight",
             )
-            # plt.show()
 
     def calculate(self):
         self.logger.info(f"Running: {self.target_dir}")
@@ -492,40 +470,28 @@ class Evaluation:
 
 def main():
     print("Starting evaluation...")
-    session_timestamp = "20250406_093323"  # test
+    session_timestamp = "20250406_093323"  # replace with your session timestamp
+
+    # Find all target directories
     target_dirs = []
     for root, dirs, files in os.walk(f"output\\{session_timestamp}"):
         for target_dir in dirs:
             if re.match(r"path_[0-9]{3}", target_dir):
-                # if re.match(r"path_001", target_dir):
                 target_dirs.append(os.path.join(root, target_dir))
 
     # Load the filenames
-    with open("filenames.pkl", "rb") as f:
+    with open("precomputed/filenames.pkl", "rb") as f:
         df_filenames = pickle.load(f)
     df_filenames.filename = df_filenames.filename.apply(os.path.splitext).str[0]
 
     # Load the metadata
-    df_metacoll = pd.read_csv(
-        r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
-    )
+    df_metacoll = pd.read_csv(cfg.FSD50K_METADATA_COLLECTION_PATH)
     df_metacoll.mids = df_metacoll.mids.str.split(",")
     df_metacoll.fname = df_metacoll.fname.astype(str)
 
-    if False:
-        # cfg.RUN_IN_PARALLEL: ### problem: processing only the path 1 for each run
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(
-                    Evaluation(target_dir, df_filenames, df_metacoll).calculate
-                )
-                for target_dir in target_dirs
-            ]
-            concurrent.futures.wait(futures)
-    else:
-        for target_dir in target_dirs:
-            evaluation = Evaluation(target_dir, df_filenames, df_metacoll)
-            evaluation.calculate()
+    for target_dir in target_dirs:
+        evaluation = Evaluation(target_dir, df_filenames, df_metacoll)
+        evaluation.calculate()
 
     print(session_timestamp)
     print("Done evaluation!")

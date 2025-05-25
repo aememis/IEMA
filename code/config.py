@@ -1,14 +1,12 @@
-import math
-
 RUN_IN_PARALLEL = True
 PLOT_IN_EVALUATION = False
 NUMBER_OF_RUNS = 1
 
 NUMBER_OF_ITERATIONS = 50  # 150  # 500
 NUMBER_OF_PATHS = 5
-PROJECTION_METHOD = "tsne"  # "umap"
-CORPUS_METHOD = "gaussian"  # "gaussian"  # "read"
-READ_CORPUS_SOURCE = "checkpoint"  # "files"  # "checkpoint"
+PROJECTION_METHOD = "tsne"  # "tsne", "umap", "isomap"
+CORPUS_METHOD = "gaussian"  # "gaussian", "read"
+READ_CORPUS_SOURCE = "checkpoint"  # "files", "checkpoint"
 SAMPLE_RATE = 22050
 POPULATION_SIZE = 200
 CORPUS_SIZE = 40000
@@ -26,10 +24,7 @@ UNIQUE_CLOSEST_IN_CORPUS = True
 NUMBER_OF_CHILDREN = 2
 NUMBER_OF_PARENTS = 2
 
-# SELECTION_THRESHOLD_DIVISOR = (
-#     100 * POPULATION_SIZE / (81.65 * math.sqrt(POPULATION_SIZE + 0.375) + 50)
-# )
-SELECTION_THRESHOLD_DIVISOR = 50  # 100  # 160  # 80  # temp
+SELECTION_THRESHOLD_DIVISOR = 50
 
 GENERATE_PATHS_ON_START = False
 ADAPT_NUMBER_OF_PATHS = True
@@ -74,10 +69,6 @@ USE_SIMULATION = True
 SAMPLES_THRESHOLD_LOW = 22050 / 2  # 4
 SAMPLES_THRESHOLD_HIGH = 22050 * 20
 
-# additive synth patch
-# DATA_FIELDS = ["carrier", "ratio", "metrodev", "att", "sus", "score", "pop"]
-
-# vocal mocap
 DATA_FIELDS_VOCALS = [
     "p1",
     "p2",
@@ -125,7 +116,10 @@ DATASET_PATH_ALLIN3 = (
 DATASET_PATH_FSD50K = (
     "D:\\datasets\\FSD50K\\FSD50K.dev_audio_comp\\FSD50K.dev_audio\\*.wav"
 )
-ONTOLOGY_GRAPH_PATH_FSD50K = (
-    "analyze_datasets\\fsd0k\\20241006_154042_dataset_ontology.gpickle"
+FSD50K_METADATA_COLLECTION_PATH = (
+    r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
 )
-ONTOLOGY_LAYERS_PATH_FSD50K = "analyze_datasets\\fsd0k\\layers.json"
+ONTOLOGY_GRAPH_PATH_FSD50K = (
+    "analyze_datasets\\fsd50k\\dataset_ontology.gpickle"
+)
+ONTOLOGY_LAYERS_PATH_FSD50K = "analyze_datasets\\fsd50k\\layers.json"

@@ -19,7 +19,6 @@ class FSD50K(Dataset):
             self.layers = json.load(file)
         self._create_super_node()
         self._create_bidirectional()
-        # self.draw_graph(self.G_bi)
 
     def _create_super_node(self):
         super_node = -1
@@ -112,8 +111,6 @@ class FSD50K(Dataset):
         nx.draw(
             G,
             pos,
-            # labels=nx.get_node_attributes(G, "label"),
-            # with_labels=True,
             node_size=75,
             font_size=10,
             font_weight="bold",
@@ -122,7 +119,7 @@ class FSD50K(Dataset):
             alpha=0.75,
         )
 
-        # Add labels
+        # add labels
         for node in G.nodes():
             x, y = pos[node]
             label = G.nodes[node]["label"]

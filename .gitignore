@@ -1,2 +1,4 @@
 code/output/
 code/__pycache__
+
+**/plot_output/*

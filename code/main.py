@@ -126,7 +126,7 @@ def main():
         Path.get_or_create_paths(source="generate")
 
     run_tests(session_timestamp)
-    evaluate(session_timestamp)
+    # evaluate(session_timestamp) # uncomment to enable evaluation
 
     print("Done!")
 

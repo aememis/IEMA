@@ -4,7 +4,7 @@ import config as cfg
 class Individual:
     """Currently not used."""
 
-    def __init__(self, id, data=None, generation=None):  ## temp fix data=1
+    def __init__(self, id, data=None, generation=None):
         self.id = id
         self.data = data
         self.generation = generation

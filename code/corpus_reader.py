@@ -1,8 +1,6 @@
 import glob
 import os
 import pickle
-import random
-import multiprocessing
 from typing import Literal
 
 import config as cfg
@@ -25,7 +23,6 @@ class CorpusReader:
     def read_corpus_from_files(self):
         self.sd.logger.info("Loading the dataset...")
         list_paths = glob.glob(cfg.DATASET_PATH_FSD50K)
-        # list_paths = random.sample(list_paths, cfg.CORPUS_SIZE)  ####
         len_paths = len(list_paths)
         dict_audio = {}
         dict_notes = {}
@@ -63,9 +60,6 @@ class CorpusReader:
                 )[0]
 
                 notes = [
-                    # os.path.basename(file),
-                    # sr,
-                    # len_y,
                     np.mean(rms),
                     np.mean(spectral_bandwidth),
                     np.mean(flux),
@@ -78,11 +72,9 @@ class CorpusReader:
                 ]
                 filename = os.path.basename(file)
                 dict_notes[filename] = notes
-                # dict_audio[filename] = audio
                 list_filenames.append(filename)
             except Exception as e:
                 self.sd.logger.warning(f"\nSkipping {file}, error loading: {e}")
-                # skipped_count += 1
                 return
 
         with ThreadPoolExecutor(max_workers=16) as executor:
@@ -93,14 +85,9 @@ class CorpusReader:
                 )
             )
 
-        self.sd.logger.info(
-            f"Loaded {len(dict_notes)} files"  # , skipped {skipped_count}."
-        )
-
-        # random.shuffle(list_filenames)
+        self.sd.logger.info(f"Loaded {len(dict_notes)} files")
 
         list_notes = [dict_notes[filename] for filename in list_filenames]
-        # list_audio = [dict_audio[filename] for filename in list_filenames]
 
         self.df_features = pd.DataFrame(
             list_notes,
@@ -113,13 +100,7 @@ class CorpusReader:
                 "sf",
             ],
         ).reset_index(drop=True)
-        self.df_samples = None  # temp, samples file not used bc of memory
-        # self.df_samples = pd.DataFrame(
-        #     list_audio,
-        #     columns=[
-        #         "signal",
-        #     ],
-        # ).reset_index(drop=True)
+        self.df_samples = None
         self.df_filenames = pd.DataFrame(
             list_filenames,
             columns=[
@@ -130,25 +111,18 @@ class CorpusReader:
 
         self.sd.logger.info("Compiled samples")
 
-        # self.sd.logger.info(self.df_features.describe())
-        # self.sd.logger.info(self.df_samples.describe())
-        # self.sd.logger.info(self.df_filenames.describe())
-
     def read_corpus_from_saved(self):
-        with open("features.pkl", "rb") as f:
+        with open("precomputed/features.pkl", "rb") as f:
             self.df_features_norm = pickle.load(f)
             self.sd.logger.info("LEN DF")
             self.sd.logger.info(len(self.df_features_norm))
-        with open("samples.pkl", "rb") as f:
-            self.df_samples = (
-                None  # pickle.load(f)  # temp, samples file is corrupted
-            )
-        with open("filenames.pkl", "rb") as f:
+        with open("precomputed/samples.pkl", "rb") as f:
+            # currently not supported as it's not needed for the research
+            self.df_samples = None  # pickle.load(f)
+        with open("precomputed/filenames.pkl", "rb") as f:
             self.df_filenames = pickle.load(f)
 
-        df_metacoll = pd.read_csv(
-            r"D:\datasets\FSD50K\FSD50K.metadata\collection\collection_dev.csv"
-        )
+        df_metacoll = pd.read_csv(cfg.FSD50K_METADATA_COLLECTION_PATH)
         df_metacoll_valid = df_metacoll[
             df_metacoll["mids"].notnull() & (df_metacoll["mids"] != "")
         ]
@@ -170,13 +144,14 @@ class CorpusReader:
 
     def save_corpus(self):
         self.sd.logger.info("Saving corpus...")
-        with open("features_raw.pkl", "wb") as file:
+        with open("precomputed/features_raw.pkl", "wb") as file:
             pickle.dump(self.df_features, file)
-        with open("features.pkl", "wb") as file:
+        with open("precomputed/features.pkl", "wb") as file:
             pickle.dump(self.df_features_norm, file)
-        # with open("samples.pkl", "wb") as file:
+        # currently not supported as it's not needed for the research
+        # with open("precomputed/samples.pkl", "wb") as file:
         #     pickle.dump(self.df_samples, file)
-        with open("filenames.pkl", "wb") as file:
+        with open("precomputed/filenames.pkl", "wb") as file:
             pickle.dump(self.df_filenames, file)
         self.sd.logger.info(f"Corpus saved with size: {len(self.df_features)}")
 
@@ -213,7 +188,6 @@ class CorpusReader:
         return self.df_samples
 
     def get_as_population(self, population_size=cfg.POPULATION_SIZE):
-        # keep: ["rms","spectral_bandwidth","flux","mfcc","sc","sf",]
         df_corpus = (
             self.df_features_norm[
                 [

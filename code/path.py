@@ -16,7 +16,7 @@ class Path:
         projection space.
         """
         if source == "file":
-            with open("paths.pkl", "rb") as file:
+            with open("precomputed/paths.pkl", "rb") as file:
                 paths = pickle.load(file)
         elif source == "generate":
             paths = []
@@ -29,7 +29,7 @@ class Path:
                     path.append([x, y, z])
                 paths.append(path)
             paths = np.array(paths)
-            with open("paths.pkl", "wb") as file:
+            with open("precomputed/paths.pkl", "wb") as file:
                 pickle.dump(paths, file)
         else:
             raise ValueError("Invalid source argument.")
