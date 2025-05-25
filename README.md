@@ -38,11 +38,11 @@ To get started with IEMA, follow these steps:
 
 ## Usage 🪡
 
-    *more coming soon...*
+*more coming soon...*
 
 ### **Directory Structure** 📂
 
-```bash
+```
 .
 │   README.md
 │   requirements.txt
@@ -86,10 +86,9 @@ To get started with IEMA, follow these steps:
 ```
 
 ## Contact 📫
-
-    Ahmet Emin Memis 🤷‍♂️
-    - **[Email 📨](mailto:ahmeteminmemis@gmail.com)**
-    - **[GitHub 🐱](https://github.com/aememis)**
-    - **[LinkedIn 💼](https://www.linkedin.com/in/aememis/)**
+**Ahmet Emin Memis 🤷‍♂️**
+- **[Email 📨](mailto:ahmeteminmemis@gmail.com)**
+- **[GitHub 🐱](https://github.com/aememis)**
+- **[LinkedIn 💼](https://www.linkedin.com/in/aememis/)**
 
 🎶🤖
