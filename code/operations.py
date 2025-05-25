@@ -11,10 +11,9 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
+from sklearn.manifold import TSNE, Isomap
 from sklearn.neighbors import NearestNeighbors
 from umap import UMAP
-from sklearn.manifold import Isomap
 
 
 class SharedData:

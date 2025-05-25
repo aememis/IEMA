@@ -1,13 +1,13 @@
 import glob
 import os
 import pickle
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 import config as cfg
 import librosa
 import numpy as np
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 
 
 class CorpusReader:

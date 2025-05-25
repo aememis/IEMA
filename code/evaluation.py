@@ -3,8 +3,8 @@ import logging
 import os
 import pickle
 import re
-import config as cfg
 
+import config as cfg
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
