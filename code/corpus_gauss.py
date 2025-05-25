@@ -1,5 +1,4 @@
 import pickle
-import random
 
 import config as cfg
 import matplotlib.pyplot as plt
